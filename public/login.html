@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Whatsapp Assistant</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Estilos gerais e para consistência do tema */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .log-success {
+            background-color: #2e7d32;
+            color: #fff;
+        }
+
+        .log-error {
+            background-color: #c62828;
+            color: #fff;
+        }
+        
+        .log-warn {
+            background-color: #f9a825;
+            color: #000;
+        }
+
+        /* Estilos para a tabela de contatos */
+        .contacts-table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        .contacts-table th,
+        .contacts-table td {
+            border: 1px solid #4a5568; /* gray-700 */
+            padding: 8px;
+            text-align: left;
+            background-color: #2d3748; /* gray-800 */
+            color: #e2e8f0; /* gray-300 */
+        }
+        .contacts-table th {
+             background-color: #1a202c; /* gray-900 */
+        }
+    </style>
+</head>
+
+<body class="bg-gray-800 text-white flex items-center justify-center min-h-screen p-4">
+
+    <!-- Container de Autenticação -->
+    <div id="auth-container" class="w-full max-w-sm">
+        <!-- Secção de Login (Visível por padrão) -->
+        <div id="login-screen">
+            <form id="login-form" onsubmit="handleLogin(event)" class="bg-gray-900 rounded-xl shadow-2xl p-6 md:p-8 space-y-6">
+                <h1 class="text-2xl font-bold text-center text-white">Login</h1>
+                <p class="text-center text-gray-400 text-sm">Faça login para continuar</p>
+                <div>
+                    <label for="login-username" class="block text-sm font-medium text-gray-300">Utilizador</label>
+                    <input type="text" id="login-username" placeholder="Seu utilizador" required class="mt-1 w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                    <label for="login-password" class="block text-sm font-medium text-gray-300">Senha</label>
+                    <input type="password" id="login-password" placeholder="Sua senha" required class="mt-1 w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div id="login-error" class="text-red-400 text-sm text-center h-4"></div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200">Entrar</button>
+                <p class="text-center text-sm text-gray-400 pt-2">
+                    Não tem uma conta? <a href="#" onclick="toggleAuthScreens(event)" class="font-semibold text-blue-400 hover:underline">Registe-se</a>
+                </p>
+            </form>
+        </div>
+
+        <!-- Secção de Registo (Oculta por padrão) -->
+        <div id="register-screen" class="hidden">
+            <form id="register-form" onsubmit="handleRegister(event)" class="bg-gray-900 rounded-xl shadow-2xl p-6 md:p-8 space-y-6">
+                <h1 class="text-2xl font-bold text-center text-white">Registar</h1>
+                <p class="text-center text-gray-400 text-sm">Crie uma nova conta</p>
+                <div>
+                    <label for="register-username" class="block text-sm font-medium text-gray-300">Utilizador</label>
+                    <input type="text" id="register-username" placeholder="Escolha um utilizador" required class="mt-1 w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                    <label for="register-password" class="block text-sm font-medium text-gray-300">Senha</label>
+                    <input type="password" id="register-password" placeholder="Crie uma senha" required class="mt-1 w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div id="register-error" class="text-red-400 text-sm text-center h-4"></div>
+                <div id="register-success" class="text-green-400 text-sm text-center h-4"></div>
+                <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200">Criar Conta</button>
+                 <p class="text-center text-sm text-gray-400 pt-2">
+                    Já tem uma conta? <a href="#" onclick="toggleAuthScreens(event)" class="font-semibold text-blue-400 hover:underline">Faça Login</a>
+                </p>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Container Principal da Aplicação (Oculto no início) -->
+    <div id="app-container" class="hidden w-full max-w-3xl bg-gray-900 rounded-xl shadow-2xl p-6 md:p-8">
+        <!-- Cabeçalho com botão de Logout -->
+        <div class="flex justify-between items-center mb-4">
+            <h1 class="text-xl font-bold">Whatsapp Assistant</h1>
+            <button onclick="logout()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md text-sm">Sair</button>
+        </div>
+
+        <!-- Menu -->
+        <div class="flex justify-around mb-6 border-b border-gray-700 pb-4">
+            <a href="#disparo" class="menu-link px-4 py-2 rounded-md hover:bg-gray-700 transition-colors duration-200">Disparo</a>
+            <a href="#retorno" class="menu-link px-4 py-2 rounded-md hover:bg-gray-700 transition-colors duration-200">Retorno</a>
+            <a href="#banco" class="menu-link px-4 py-2 rounded-md hover:bg-gray-700 transition-colors duration-200">Banco</a>
+            <a href="#whatsapp-lateral" class="menu-link px-4 py-2 rounded-md hover:bg-gray-700 transition-colors duration-200">WhatsApp</a>
+        </div>
+
+        <!-- Secção do QR Code -->
+        <div class="sidebar text-center" id="whatsapp-lateral">
+            <h1 class="text-2xl font-bold mb-4">Status do WhatsApp</h1>
+            <p class="text-gray-400 mb-4">Aponte seu celular para ler o QR Code, caso seja solicitado.</p>
+            <img src="" alt="QR Code" id="qrcode" class="mx-auto rounded-lg shadow-lg hidden">
+            <div id="whatsapp-status" class="mt-4 font-semibold"></div>
+        </div>
+
+        <!-- Secção de Disparo -->
+        <div class="sidebar space-y-4" id="disparo">
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">1. Escolha uma lista (.csv, .xlsx)</label>
+                <input type="file" id="planilha" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" onchange="previewPlanilha(event)">
+                <button onclick="abrirPreview()" class="mt-2 w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200">Pré-visualizar Lista</button>
+            </div>
+
+            <div>
+                 <label class="block text-sm font-medium text-gray-300 mb-1">2. Digite o índice dos clientes:</label>
+                 <div class="flex space-x-2">
+                     <input type="number" placeholder="Início" id="valor1" min="1" class="w-1/2 bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white placeholder-gray-400">
+                     <input type="number" placeholder="Final" id="valor2" min="1" class="w-1/2 bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white placeholder-gray-400">
+                 </div>
+            </div>
+
+            <div>
+                <label for="mensagem" class="block text-sm font-medium text-gray-300">3. Mensagem</label>
+                <p class="text-xs text-gray-400 mb-1">Use: @nome @nomecompleto @cpf @agencia</p>
+                <textarea id="mensagem" placeholder="Digite seu texto aqui." rows="5" class="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white placeholder-gray-400"></textarea>
+            </div>
+
+            <div>
+                <label for="mediaFile" class="block text-sm font-medium text-gray-300">4. Anexar Mídia (Opcional)</label>
+                 <p class="text-xs text-gray-400 mb-1">Formatos: .jpg, .ogg, .opus</p>
+                <input type="file" id="mediaFile" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-600 file:text-white hover:file:bg-gray-700" accept="image/jpeg, audio/ogg, audio/opus">
+            </div>
+
+            <button id="sendButton" onclick="enviarValores()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-md transition-colors duration-200 text-lg">Enviar!</button>
+            <p class="text-center text-sm text-gray-400 pt-4">Precisa de ajuda? <a href="https://wa.me/554191798537/" target="_blank" class="text-blue-400 hover:underline">Fale com o suporte</a></p>
+        </div>
+
+        <!-- Secção de Retorno/Logs -->
+        <div class="sidebar" id="retorno">
+            <h2 class="text-xl font-bold mb-4">Logs de Envio</h2>
+            <div class="text-right text-xs text-gray-400 mb-2 pr-2">
+                Mais recente ↑ | Mais antigo ↓
+            </div>
+            <div class="bg-gray-800 p-4 rounded-lg max-h-96 overflow-y-auto">
+                 <ul class="logs space-y-2"></ul>
+            </div>
+        </div>
+        
+        <!-- Secção do Banco de Dados -->
+        <div class="sidebar" id="banco">
+             <h2 class="text-xl font-bold mb-2">Banco de Dados</h2>
+             <p class="text-sm text-gray-400 mb-4">Visualize e filtre os contatos salvos.</p>
+             
+             <div class="flex mb-4">
+                 <input type="text" id="termoBusca" placeholder="Buscar por nome ou CPF..." class="w-full bg-gray-700 border border-gray-600 rounded-l-md px-3 py-2 text-white placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500">
+                 <button onclick="carregarBanco('default', $('#termoBusca').val())" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-r-md">Buscar</button>
+             </div>
+             
+             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                 <button onclick="carregarBanco('default')" class="bg-gray-700 hover:bg-gray-600 p-2 rounded-md">Todos</button>
+                 <button onclick="carregarBanco('ultimoEnvio')" class="bg-gray-700 hover:bg-gray-600 p-2 rounded-md">Ordenar por Envio</button>
+                 <button onclick="carregarBanco('cemMaisAntigos')" class="bg-gray-700 hover:bg-gray-600 p-2 rounded-md">100 Mais Antigos</button>
+                 <button onclick="carregarBanco('aniversariantesHoje')" class="bg-yellow-600 hover:bg-yellow-700 p-2 rounded-md">Aniversariantes de Hoje</button>
+                 <button onclick="carregarBanco('aniversariantesMes')" class="bg-yellow-600 hover:bg-yellow-700 p-2 rounded-md">Aniversariantes do Mês</button>
+             </div>
+             <div id="contacts-table-container" class="mt-4"></div>
+        </div>
+    </div>
+
+    <!-- Modal para Pré-visualização -->
+    <div id="modalPreview" class="fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4 z-50 hidden">
+        <div class="bg-gray-900 rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b border-gray-700">
+                <h3 class="text-lg font-semibold">Pré-visualização</h3>
+                <button onclick="fecharPreview()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+            <div class="p-4 overflow-auto" id="previewContent">
+                <!-- Conteúdo da pré-visualização será injetado aqui -->
+            </div>
+             <div class="p-4 border-t border-gray-700" id="modalFooter">
+                <!-- Botões do rodapé do modal (ex: Criar CSV) -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Bibliotecas JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/notify/0.4.2/notify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <script>
+        let tabelaPreview = '';
+        let socket;
+
+        /**
+         * Verifica se existe um token ao carregar a página.
+         */
+        $(document).ready(function() {
+            const token = localStorage.getItem('jwtToken');
+            if (token) {
+                $('#auth-container').hide();
+                $('#app-container').removeClass('hidden').addClass('block');
+                startApp();
+            } else {
+                $('#auth-container').show();
+                $('#app-container').hide();
+            }
+        });
+
+        /**
+         * Alterna entre as telas de login e registo.
+         */
+        function toggleAuthScreens(event) {
+            event.preventDefault();
+            $('#login-screen').toggleClass('hidden');
+            $('#register-screen').toggleClass('hidden');
+            $('#login-error, #register-error, #register-success').text('');
+        }
+
+        /**
+         * Lida com a tentativa de registo do utilizador.
+         */
+        async function handleRegister(event) {
+            event.preventDefault();
+            $('#register-error').text('');
+            $('#register-success').text('');
+
+            const username = $('#register-username').val();
+            const password = $('#register-password').val();
+
+            // CORREÇÃO: Removida a validação desnecessária que causava o erro.
+            if (!username || !password) {
+                $('#register-error').text("Utilizador e senha são obrigatórios.");
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    $('#register-success').text(result.message + " Você pode fazer o login agora.");
+                    $('#register-form')[0].reset();
+                    setTimeout(() => toggleAuthScreens(event), 2500);
+                } else {
+                    $('#register-error').text(result.message || 'Erro desconhecido ao registar.');
+                }
+            } catch (error) {
+                console.error("Erro no registo:", error);
+                $('#register-error').text("Erro de conexão ao tentar registar.");
+            }
+        }
+
+        /**
+         * Lida com a tentativa de login do utilizador.
+         */
+        async function handleLogin(event) {
+            event.preventDefault();
+            $('#login-error').text('');
+            const username = $('#login-username').val();
+            const password = $('#login-password').val();
+
+            if (!username || !password) {
+                $('#login-error').text("Utilizador e senha são obrigatórios.");
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    localStorage.setItem('jwtToken', result.token);
+                    $('#auth-container').hide();
+                    $('#app-container').removeClass('hidden').addClass('block');
+                    startApp();
+                } else {
+                    $('#login-error').text(result.message || 'Credenciais inválidas.');
+                }
+            } catch (error) {
+                console.error("Erro no login:", error);
+                $('#login-error').text("Erro de conexão ao tentar fazer login.");
+            }
+        }
+
+        /**
+         * Faz o logout do utilizador.
+         */
+        function logout() {
+            if (socket) {
+                socket.disconnect();
+            }
+            localStorage.removeItem('jwtToken');
+            location.reload();
+        }
+        
+        /**
+         * Inicializa a aplicação principal após o login.
+         */
+        function startApp() {
+            socket = io({
+                auth: {
+                    token: localStorage.getItem('jwtToken')
+                }
+            });
+
+            setupSocketListeners();
+            
+            $('.menu-link').on('click', function (e) {
+                e.preventDefault();
+                const target = $(this).attr('href');
+                switchView(target);
+            });
+            // Inicia na tela do WhatsApp para ver o status da conexão
+            switchView('#whatsapp-lateral');
+        }
+
+        /**
+         * Configura os listeners para eventos do Socket.IO.
+         */
+        function setupSocketListeners() {
+            socket.on('connect_error', (err) => {
+                if (err.message === "Token inválido.") {
+                    handleAuthError();
+                }
+            });
+
+            socket.on('qr', function (url) {
+                switchView('#whatsapp-lateral');
+                $('#qrcode').attr('src', url).show();
+                $('#whatsapp-status').text('Por favor, escaneie o QR Code.').removeClass('text-green-400 text-red-400');
+            });
+
+            socket.on('ready', function () {
+                $('#qrcode').hide();
+                $('#whatsapp-status').text('WhatsApp conectado com sucesso!').removeClass('text-red-400').addClass('text-green-400');
+                setTimeout(() => switchView('#disparo'), 1000);
+            });
+
+            socket.on('disconnected', function() {
+                $('#whatsapp-status').text('WhatsApp desconectado.').removeClass('text-green-400').addClass('text-red-400');
+                $.notify("WhatsApp foi desconectado. Por favor, reconecte na aba WhatsApp.", { className: "error", position: "top center" });
+            });
+
+            socket.on('log', function (msg) {
+                let statusClass = 'log-error';
+                if (msg.includes('✅') || msg.includes('Sucesso')) {
+                    statusClass = 'log-success';
+                } else if (msg.includes('🟡') || msg.includes('Atenção') || msg.includes('▶️')) {
+                    statusClass = 'log-warn';
+                }
+                $('.logs').prepend(`<li class="${statusClass} p-2 rounded-md text-sm">${msg}</li>`);
+            });
+
+            socket.on('upload-success', (data) => {
+                console.log('Upload bem-sucedido:', data.fileName);
+            });
+
+            socket.on('campaign-finished', () => {
+                $('#sendButton').prop('disabled', false).text('Enviar!');
+                $.notify("Campanha finalizada!", { className: "success", position: "top center" });
+            });
+        }
+
+        function handleAuthError() {
+            $.notify("Sessão expirada. Por favor, faça login novamente.", { className: "error", position: "top center" });
+            setTimeout(logout, 2000);
+        }
+
+        function parseJwt(token) {
+            try {
+                return JSON.parse(atob(token.split('.')[1]));
+            } catch (e) {
+                return null;
+            }
+        }
+
+        /**
+         * Lida com o envio da campanha, fazendo upload dos ficheiros primeiro.
+         * CORREÇÃO: Renomeia o cabeçalho 'idade' para 'nascimento' antes de enviar.
+         */
+        async function enviarValores() {
+            const planilhaInput = $('#planilha')[0];
+            const valor1 = $('#valor1').val();
+            const valor2 = $('#valor2').val();
+            const mensagem = $('#mensagem').val();
+            const mediaInput = $('#mediaFile')[0];
+
+            if (!planilhaInput.files[0]) {
+                return $.notify("Por favor, selecione uma lista (planilha).", { className: "error", position: "top center" });
+            }
+            if (!valor1 || !valor2 || parseInt(valor1) < 1 || parseInt(valor2) < parseInt(valor1)) {
+                return $.notify("Verifique os valores de início e final.", { className: "error", position: "top center" });
+            }
+            if (!socket) {
+                 return $.notify("Conexão não estabelecida. Por favor, recarregue a página.", { className: "error", position: "top center" });
+            }
+
+            $('#sendButton').prop('disabled', true).text('A preparar...');
+            switchView('#retorno');
+
+            try {
+                const token = localStorage.getItem('jwtToken');
+                const userData = parseJwt(token);
+                if (!userData || !userData.clientId) {
+                    throw new Error("Não foi possível obter o ID do cliente do token.");
+                }
+                const clientId = userData.clientId;
+
+                // 1. Ler e modificar a planilha em memória
+                const listFile = planilhaInput.files[0];
+                const fileBuffer = await listFile.arrayBuffer();
+                const workbook = XLSX.read(fileBuffer, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+
+                // Encontra e renomeia o cabeçalho 'idade' para 'nascimento'
+                for (const cellAddress in worksheet) {
+                    if (!worksheet.hasOwnProperty(cellAddress) || cellAddress[0] === '!') continue;
+                    const cell = worksheet[cellAddress];
+                    if (cell.v && typeof cell.v === 'string' && cell.v.toLowerCase().trim() === 'idade') {
+                        cell.v = 'nascimento';
+                        $.notify("Coluna 'idade' mapeada para 'nascimento'.", { className: "success" });
+                        break; 
+                    }
+                }
+
+                const newFileBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+
+                // 2. Upload da lista modificada
+                socket.emit('upload-list', { id: clientId, file: newFileBuffer, fileName: listFile.name });
+                $.notify("A enviar a lista...", { className: "warn", position: "top center" });
+
+                // 3. Upload da multimédia (se existir)
+                if (mediaInput.files[0]) {
+                    const mediaFile = mediaInput.files[0];
+                    const mediaBuffer = await mediaFile.arrayBuffer();
+                    socket.emit('upload-media', { id: clientId, file: mediaBuffer, type: mediaFile.type });
+                    $.notify("A enviar a multimédia...", { className: "warn", position: "top center" });
+                }
+                
+                // 4. Iniciar a campanha
+                const campaignData = {
+                    id: clientId,
+                    start: valor1 - 1,
+                    end: valor2 - 1,
+                    message: mensagem,
+                    listFileName: listFile.name
+                };
+
+                setTimeout(() => {
+                    $('#sendButton').text('A enviar mensagens...');
+                    socket.emit('start-sending', campaignData);
+                }, 1500);
+
+            } catch (error) {
+                console.error("Erro ao preparar campanha:", error);
+                $.notify(error.message, { className: "error", position: "top center" });
+                $('#sendButton').prop('disabled', false).text('Enviar!');
+            }
+        }
+
+        async function carregarBanco(filtro = 'default', termoBusca = '') {
+            try {
+                const token = localStorage.getItem('jwtToken');
+                const response = await fetch(`/api/contacts?filter=${filtro}&search=${termoBusca}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.status === 401 || response.status === 403) return handleAuthError();
+                if (!response.ok) throw new Error('Falha ao buscar contatos.');
+
+                const dados = await response.json();
+                let tabela = renderizarTabelaModal(dados);
+                let footer = '';
+
+                if (['aniversariantesMes', 'cemMaisAntigos'].includes(filtro) && dados.length > 0) {
+                    footer = `<button onclick='criarListaCsv(${JSON.stringify(dados)}, "${filtro}")' class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Criar Lista CSV</button>`;
+                }
+                
+                // Renderiza a tabela diretamente na página
+                const container = $('#contacts-table-container');
+                container.html(tabela);
+                if (footer) {
+                    container.append('<div class="mt-4">' + footer + '</div>');
+                }
+
+            } catch (error) {
+                console.error("Erro ao carregar banco:", error);
+                $.notify('Erro ao carregar dados do banco.', { className: "error", position: "top center" });
+            }
+        }
+
+        function switchView(targetId) {
+            $('.sidebar').hide();
+            $(targetId).show();
+            $('.menu-link').removeClass('bg-gray-700');
+            $(`.menu-link[href="${targetId}"]`).addClass('bg-gray-700');
+
+            // Se a aba selecionada for o banco de dados, carrega os contatos
+            if (targetId === '#banco') {
+                carregarBanco();
+            }
+        }
+
+        function abrirPreview() {
+            if (tabelaPreview) {
+                 $('#previewContent').html(tabelaPreview);
+                 $('#modalFooter').html(''); // Limpa o rodapé para a pré-visualização da lista
+                 $('#modalPreview').removeClass('hidden').addClass('flex');
+            } else {
+                 return $.notify('Nenhuma planilha carregada para pré-visualizar!', { className: "warn", position: "top center" });
+            }
+        }
+
+        function fecharPreview() {
+            $('#modalPreview').removeClass('flex').addClass('hidden');
+            $('#previewContent').empty();
+            $('#modalFooter').empty();
+        }
+
+        function previewPlanilha(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                tabelaPreview = '';
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: "" });
+
+                    if (!json || json.length <= 1) {
+                        tabelaPreview = '<p class="text-center text-gray-400">A planilha está vazia ou contém apenas um cabeçalho.</p>';
+                        return;
+                    }
+
+                    const maxCols = json.reduce((max, row) => Math.max(max, row.length), 0);
+                    let table = '<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr>';
+                    
+                    table += '<th class="p-2 sticky top-0 bg-gray-700 text-center">Índice</th>';
+                    if(json.length > 0) {
+                        for (let colIndex = 0; colIndex < maxCols; colIndex++) {
+                             table += `<th class="p-2 sticky top-0 bg-gray-700">${json[0][colIndex] || ''}</th>`;
+                        }
+                    }
+                    table += '</tr></thead><tbody>';
+                    
+                    for (let rowIndex = 1; rowIndex < json.length; rowIndex++) {
+                        const rowData = json[rowIndex];
+                        const isRowEmpty = !rowData.some(cell => cell && String(cell).trim() !== '');
+                        if (isRowEmpty) continue;
+
+                        table += '<tr>';
+                        table += `<td class="p-2 text-center font-semibold bg-gray-800">${rowIndex + 1}</td>`;
+                        for (let colIndex = 0; colIndex < maxCols; colIndex++) {
+                             const cellValue = rowData[colIndex] || '';
+                             table += `<td class="p-2">${String(cellValue).trim()}</td>`;
+                        }
+                        table += '</tr>';
+                    }
+                    
+                    table += '</tbody></table></div>';
+                    tabelaPreview = table;
+                    $.notify("Pré-visualização da planilha pronta.", { className: "success", position: "top center" });
+                } catch (error) {
+                    console.error("Erro ao ler a planilha:", error);
+                    $.notify("Formato de arquivo inválido ou corrompido.", { className: "error", position: "top center" });
+                    tabelaPreview = '';
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function renderizarTabelaModal(dados) {
+             let tabela = '<div class="overflow-x-auto"><table class="contacts-table w-full text-sm"><thead><tr>' +
+                   '<th>Nome</th><th>CPF</th><th>Agência</th><th>Nascimento</th><th>Telefone</th><th>Último Envio</th></tr></thead><tbody>';
+            dados.forEach(contato => {
+                const numeroTelefone = contato.telefone || '';
+                let telefoneHtml = numeroTelefone;
+                
+                if (numeroTelefone) {
+                    const linkWhatsapp = `https://wa.me/${numeroTelefone}`;
+                    telefoneHtml = `<a href="${linkWhatsapp}" target="_blank" class="text-blue-400 hover:underline" title="Abrir conversa">${numeroTelefone}</a>`;
+                }
+
+                tabela += `<tr>
+                            <td>${contato.nome || ''}</td>
+                            <td>${contato.cpf || ''}</td>
+                            <td>${contato.agencia || ''}</td>
+                            <td>${contato.nascimento || ''}</td>
+                            <td>${telefoneHtml}</td>
+                            <td>${contato.data_envio_ultima_mensagem ? new Date(contato.data_envio_ultima_mensagem).toLocaleDateString() : ''}</td>
+                        </tr>`;
+            });
+            tabela += '</tbody></table></div>';
+            return tabela;
+        }
+
+        function criarListaCsv(dados, filtro) {
+            if (!dados || !dados.length) {
+                return $.notify("Nenhum dado para exportar.", { className: "warn", position: "top center" });
+            }
+            const headers = ["nome", "cpf", "agencia", "nascimento", "DDD", "Telefone", "data_envio_ultima_mensagem"];
+            let csv = headers.join(";") + "\n";
+            dados.forEach(item => {
+                const telefone = (item.telefone || "").toString();
+                const ddd = telefone.slice(2, 4);
+                const tel = telefone.slice(4);
+                const linha = [
+                    `"${(item.nome || "").replace(/"/g, '""')}"`, `"${(item.cpf || "").replace(/"/g, '""')}"`,
+                    `"${(item.agencia || "").replace(/"/g, '""')}"`, `"${(item.nascimento || "").replace(/"/g, '""')}"`,
+                    `"${ddd}"`, `"${tel}"`, `"${(item.data_envio_ultima_mensagem || "").replace(/"/g, '""')}"`
+                ];
+                csv += linha.join(";") + "\n";
+            });
+            const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `${filtro}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+/* Estilos Gerais */
+.input-field {
+    @apply w-full p-3 mt-1 text-gray-200 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-gray-600;
+}
+.button-primary {
+    @apply w-full py-3 font-bold text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors disabled:bg-indigo-800 disabled:cursor-not-allowed;
+}
+.error-message {
+    @apply text-red-400 text-center text-sm min-h-[20px];
+}
+.success-message {
+    @apply text-green-400 text-center text-sm min-h-[20px];
+}
+.link {
+    @apply font-bold text-indigo-400 hover:underline;
+}
+
+/* Estilos do Dashboard */
+.nav-link {
+    @apply text-gray-400 hover:bg-gray-700 hover:text-white px-4 py-2 rounded-md transition-colors flex items-center gap-3;
+}
+.active-link {
+    @apply bg-indigo-600 text-white;
+}
+.card {
+    @apply bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700;
+}
+.card-title {
+    @apply text-sm font-bold text-gray-400 uppercase tracking-wider;
+}
+.card-value {
+    @apply text-4xl font-bold text-white mt-2;
+}
+.page-section {
+    @apply animate-fade-in;
+}
+.log-box {
+    @apply mt-2 p-3 h-48 bg-gray-900 text-sm font-mono rounded-lg overflow-y-auto border border-gray-700;
+}
+@keyframes fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "whatsapp-multi-client-system",
+  "version": "2.0.0",
+  "description": "Plataforma de gerenciamento e automação para WhatsApp.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "author": "KILLSIS",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^9.4.3",
+    "chart.js": "^4.4.2",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "lucide-static": "^0.378.0",
+    "qrcode": "^1.5.3",
+    "socket.io": "^4.7.4",
+    "whatsapp-web.js": "^1.23.0",
+    "xlsx": "^0.18.5"
+  }
+}
