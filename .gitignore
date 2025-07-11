@@ -1,0 +1,17 @@
+# Ignorar dependências
+node_modules/
+
+# Ignorar cache do WhatsApp Web JS
+.wwebjs_cache/
+
+# Ignorar diretório de usuários
+user/
+
+database/
+
+# Ignorar variáveis de ambiente
+.env
+
+# Ignorar logs e arquivos temporários
+*.log
+*.tmp

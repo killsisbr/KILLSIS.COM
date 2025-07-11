@@ -35,19 +35,31 @@ function initializeClient(sessionIdentifier, userObject, socket, isCentralBot = 
         return;
     }
 
+    
+    // --- INÍCIO DA CORREÇÃO ---
+    // Verifica se um cliente já existe e se ele está em um estado funcional (não é um "zumbi").
     if (clients[sanitizedIdentifier]) {
-        console.log(`Sessão para ${sanitizedIdentifier} já existe. Ignorando nova inicialização.`);
-        if (socket) {
-            clients[sanitizedIdentifier].getState().then(state => {
-                if (state === 'CONNECTED') {
-                    socket.emit('ready');
-                    socket.emit('log', `Reconectado à sessão existente.`);
-                }
-            }).catch(err => {
-                console.error(`Erro ao obter estado do cliente existente para ${sanitizedIdentifier}:`, err);
-            });
+        const existingClient = clients[sanitizedIdentifier];
+        
+        // A presença de 'pupBrowser' é um bom indicador de que o cliente não foi destruído.
+        if (existingClient.pupBrowser) {
+            console.log(`Sessão para ${sanitizedIdentifier} já existe e está ativa. Tentando reconectar.`);
+            if (socket) {
+                existingClient.getState().then(state => {
+                    if (state === 'CONNECTED') {
+                        socket.emit('ready');
+                        socket.emit('log', `Reconectado à sessão existente.`);
+                    }
+                }).catch(err => {
+                    console.error(`Erro ao obter estado do cliente existente para ${sanitizedIdentifier}:`, err);
+                });
+            }
+            return; // Impede a reinicialização se o cliente estiver saudável.
+        } else {
+            // Se o cliente existe mas não tem 'pupBrowser', é um zumbi.
+            console.warn(`[FIX] Sessão "zumbi" para ${sanitizedIdentifier} encontrada. Removendo para recriar.`);
+            delete clients[sanitizedIdentifier];
         }
-        return;
     }
 
     console.log(`Inicializando sessão para: ${sanitizedIdentifier} (Original: ${sessionIdentifier}, Central Bot: ${isCentralBot})`);
@@ -159,7 +171,7 @@ function initializeClient(sessionIdentifier, userObject, socket, isCentralBot = 
 
     client.on('message_create', async (message) => {
         if (message.fromMe && message.body.includes('🔍')) {
-            const clientPhoneNumber = message.from.replace('@c.us', '').substring(2);
+            const clientPhoneNumber = message.to.replace('@c.us', '').substring(2);
             const searchCommand = `!buscar ${clientPhoneNumber}`;
             await client.sendMessage(getCentralBotWhatsappNumber() + '@c.us', searchCommand);
             console.log(`[Central Bot] Disparado comando de busca para ${clientPhoneNumber} via emoji.`);

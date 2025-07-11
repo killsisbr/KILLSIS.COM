@@ -16,20 +16,20 @@ const campaignsInProgress = new Set();
 // --- Funções Auxiliares ---
 
 function normalizarTelefone(telefone) {
-    if (!telefone) return '';
-    let fone = String(telefone).replace(/\D/g, '');
-    if (fone.length === 9 && fone.startsWith('9')) {
-        fone = fone.substring(1);
+    telefone = telefone.replace(/\D/g, '');
+    while (telefone.length > 8) {
+        telefone = telefone.substring(1);
     }
-    return fone;
+    return telefone;
 }
+
 
 function formatarData(data) {
     if (!data) return '';
     if (typeof data === 'number') {
         const date_info = XLSX.SSF.parse_date_code(data);
-        const dia = String(date_info.d).padStart(2, '0');
-        const mes = String(date_info.m).padStart(2, '0');
+        const mes = String(date_info.d).padStart(2, '0');
+        const dia = String(date_info.m).padStart(2, '0');
         const ano = date_info.y;
         return `${dia}/${mes}/${ano}`;
     }
@@ -155,12 +155,19 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
             if (numerosParaTentar.length === 0) {
                 campaignStats.noContactInfo++;
             } else {
+                let ignore = 0;
                 for (const numero of numerosParaTentar) {
-                    // *** ALTERAÇÃO AQUI ***
-                    // A verificação de envio recente agora é feita por NÚMERO, dentro do loop.
+                    // *** CORREÇÃO LÓGICA ***
+                    // A verificação de envio recente agora é feita por numero
+                    // antes de tentar qualquer um dos seus números.
                     if (dbService.checkRecentSend(numero, clientWhatsappNumber)) {
+
+                        if (ignore === 0) {
+                            reply(`🟡 Ignorado (envio recente): ${nomeCompleto}`);
+                            ignore = 1;
+                        }
                         campaignStats.ignoredRecent++;
-                        continue; // Pula para o próximo número, pois este foi contatado recentemente.
+                        continue; // Pula para o próximo contato da planilha.
                     }
 
                     const numeroComWhatsapp = `${numero}@c.us`;
@@ -184,10 +191,21 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
                             }
 
                             if (mediaToSend) {
-                                await client.sendMessage(numeroComWhatsapp, mediaToSend, { caption: textoFinal });
+                                const isAudio = path.extname(mediaToSend.filename).toLowerCase() === '.ogg';
+
+                                if (isAudio) {
+                                    // Envia texto separado antes do áudio
+                                    await client.sendMessage(numeroComWhatsapp, textoFinal);
+                                    await new Promise(resolve => setTimeout(resolve, 500)); // pequeno delay
+                                    await client.sendMessage(numeroComWhatsapp, mediaToSend);
+                                } else {
+                                    // Para imagem, legenda funciona
+                                    await client.sendMessage(numeroComWhatsapp, mediaToSend, { caption: textoFinal });
+                                }
                             } else {
                                 await client.sendMessage(numeroComWhatsapp, textoFinal);
                             }
+
 
                             dbService.saveOrUpdateContact({
                                 cpf: dados.CPF, nome: dados.NOME, agencia: dados.AGENCIA,
@@ -195,9 +213,9 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
                                 nascimento: dados.NASCIMENTO
                             }, clientWhatsappNumber);
                             dbService.logCampaignSend(clientWhatsappNumber, dados.CPF, 'SENT');
-                            
+
                             enviadoComSucesso = true;
-                            break; 
+                            break;
                         } else {
                             dbService.logCampaignSend(clientWhatsappNumber, dados.CPF, 'NO_WHATSAPP');
                             campaignStats.noWhatsapp++;
@@ -209,13 +227,6 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
                 }
             }
 
-            if (enviadoComSucesso) {
-                reply(`✅ Sucesso para ${nomeCompleto}.`);
-                campaignStats.successfulSends++;
-            } else {
-                reply(`❌ Falha no envio para ${nomeCompleto}.`);
-            }
-
             await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 2000));
         }
     } catch (error) {
@@ -224,17 +235,13 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
     } finally {
         const summary = `
         \n---------------------------------
-        🏁 **Campanha Finalizada!** 🏁
-        ---------------------------------
-        - **Total Processado:** ${campaignStats.totalProcessed}
-        - **✅ Enviados com Sucesso:** ${campaignStats.successfulSends}
-        - **❌ Falhas (Total Tentativas):** ${campaignStats.failedToSend}
-        - **⭕ Sem WhatsApp (Total Tentativas):** ${campaignStats.noWhatsapp}
-        - **🚫 Sem Contato Válido:** ${campaignStats.noContactInfo}
-        - **🟡 Ignorados (Recentes):** ${campaignStats.ignoredRecent}
-        - **🟡 Ignorados (Sem CPF):** ${campaignStats.ignoredNoCpf}
+        🏁 *Campanha Finalizada!* 🏁
+        - *Total Processado:* ${campaignStats.totalProcessed}
+        - *✅ Enviados com Sucesso:* ${campaignStats.successfulSends}
+        - *⭕ Sem WhatsApp (Tentativas):* ${campaignStats.noWhatsapp}
+        - *🚫 Sem Contato Válido:* ${campaignStats.noContactInfo}
         ---------------------------------`;
-        
+
         reply(summary);
 
         campaignsInProgress.delete(clientWhatsappNumber);
