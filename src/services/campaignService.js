@@ -182,29 +182,32 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
 
                             const imagePath = path.join(userDirBase, clientWhatsappNumber, 'imagem.jpeg');
                             const audioPath = path.join(userDirBase, clientWhatsappNumber, 'audio.ogg');
-                            let mediaToSend = null;
 
-                            if (fs.existsSync(imagePath)) {
-                                mediaToSend = MessageMedia.fromFilePath(imagePath);
-                            } else if (fs.existsSync(audioPath)) {
-                                mediaToSend = MessageMedia.fromFilePath(audioPath);
+                            const imageExists = fs.existsSync(imagePath);
+                            const audioExists = fs.existsSync(audioPath);
+
+                            // --- MODIFICAÇÃO INICIA AQUI ---
+
+                            // 1. Envia a mensagem de texto primeiro, independentemente da mídia.
+                            await client.sendMessage(numeroComWhatsapp, textoFinal);
+
+                            // Pequena pausa para as mensagens não chegarem "coladas"
+                            await new Promise(resolve => setTimeout(resolve, 500));
+
+                            // 2. Se a imagem existir, envia a imagem.
+                            if (imageExists) {
+                                const imageMedia = MessageMedia.fromFilePath(imagePath);
+                                await client.sendMessage(numeroComWhatsapp, imageMedia);
+                                await new Promise(resolve => setTimeout(resolve, 500)); // Pausa opcional
                             }
 
-                            if (mediaToSend) {
-                                const isAudio = path.extname(mediaToSend.filename).toLowerCase() === '.ogg';
-
-                                if (isAudio) {
-                                    // Envia texto separado antes do áudio
-                                    await client.sendMessage(numeroComWhatsapp, textoFinal);
-                                    await new Promise(resolve => setTimeout(resolve, 500)); // pequeno delay
-                                    await client.sendMessage(numeroComWhatsapp, mediaToSend);
-                                } else {
-                                    // Para imagem, legenda funciona
-                                    await client.sendMessage(numeroComWhatsapp, mediaToSend, { caption: textoFinal });
-                                }
-                            } else {
-                                await client.sendMessage(numeroComWhatsapp, textoFinal);
+                            // 3. Se o áudio existir, envia o áudio.
+                            if (audioExists) {
+                                const audioMedia = MessageMedia.fromFilePath(audioPath);
+                                // Para áudio, a opção 'sendAudioAsVoice' garante que ele apareça como mensagem de voz.
+                                await client.sendMessage(numeroComWhatsapp, audioMedia, { sendAudioAsVoice: true });
                             }
+                            // --- MODIFICAÇÃO TERMINA AQUI ---
 
 
                             dbService.saveOrUpdateContact({
