@@ -201,7 +201,7 @@ function initializeClient(sessionIdentifier, userObject, socket, isCentralBot = 
     // --- Rota para Análise de Imagem ---
     // Responde se o usuário enviar uma imagem com uma legenda começando com '!analisar'
     if (message.hasMedia && message.body.toLowerCase().startsWith('!analisar ')) {
-        const prompt = message.body.substring(10); // Pega o texto após '!analisar '
+        const prompt = message.body.substring(10) + ', responda em portugues.'; // Pega o texto após '!analisar '
         
         message.reply('🖼️ Analisando a imagem...');
 
