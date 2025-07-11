@@ -4,6 +4,9 @@ const qrcode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
 const dbService = require('./databaseService');
+// Importe os novos serviços
+const geminiChatService = require('./geminiChatService.js');
+const geminiFileService = require('./geminiFileService.js');
 
 const clients = {};
 const userDir = path.join(__dirname, '..', '..', 'user');
@@ -180,6 +183,50 @@ function initializeClient(sessionIdentifier, userObject, socket, isCentralBot = 
     });
 
     client.on('message', async (message) => {
+         const userMessage = message.body;
+    const userId = message.from; // ID único do usuário
+
+    // --- Rota para o Chatbot ---
+    // Responde se a mensagem começar com '!ia'
+    if (userMessage.toLowerCase().startsWith('!ia ')) {
+        const prompt = userMessage.substring(4); // Pega o texto após '!ia '
+        
+        message.reply('🤖 Pensando...'); // Feedback para o usuário
+
+        const aiResponse = await geminiChatService.sendMessageToAI(userId, prompt);
+        message.reply(aiResponse);
+        return;
+    }
+
+    // --- Rota para Análise de Imagem ---
+    // Responde se o usuário enviar uma imagem com uma legenda começando com '!analisar'
+    if (message.hasMedia && message.body.toLowerCase().startsWith('!analisar ')) {
+        const prompt = message.body.substring(10); // Pega o texto após '!analisar '
+        
+        message.reply('🖼️ Analisando a imagem...');
+
+        try {
+            const media = await message.downloadMedia();
+            if (media && media.mimetype.startsWith('image/')) {
+                // Salva a imagem temporariamente
+                const filePath = `./temp_media.${media.mimetype.split('/')[1]}`;
+                fs.writeFileSync(filePath, Buffer.from(media.data, 'base64'));
+
+                // Chama o serviço de análise
+                const analysisResult = await geminiFileService.analyzeFile(prompt, filePath, media.mimetype);
+                message.reply(analysisResult);
+
+                // Apaga o arquivo temporário
+                fs.unlinkSync(filePath);
+            } else {
+                message.reply("Por favor, envie uma imagem válida para análise.");
+            }
+        } catch (error) {
+            console.error("Erro ao baixar ou analisar mídia:", error);
+            message.reply("Ocorreu um erro ao processar sua imagem.");
+        }
+        return;
+    }
         const commandService = require('./commandService');
         if (!isCentralBot) {
             return;

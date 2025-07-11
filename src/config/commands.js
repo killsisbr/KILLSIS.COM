@@ -47,15 +47,19 @@ const commands = [
         command: '!ajuda',
         description: 'Mostra a lista de comandos disponíveis.',
         action: async (message) => {
-            let helpText = `*COMANDOS DISPONIVEIS*\n\n` +
-                `*!gerar [n]* - Gera uma lista com [n] contatos válidos. Ex: \`!gerar 10\`\n\n` +
-                `*!aniversariantes [hoje|mes]* - Lista aniversariantes.\n\n` +
-                `*!texto [msg]* - Define o texto da sua campanha. Use @nome, @cpf, etc.\n\n` +
-                `*!buscar [termo]* - Busca um contato salvo. Ex: \`!buscar joão\`\n\n` +
-                `*.ver* - Mostra o texto e a mídia da campanha atual.\n\n` +
-                `*.del [tipo]* - Apaga um arquivo (imagem, audio, lista).\n\n` +
-                `*.enviar [inicio] [fim]* - Inicia a campanha. Ex: \`.enviar 2 100\`\n\n` +
-                `_Para enviar uma lista, imagem ou áudio, basta enviar o arquivo para mim._`;
+               let helpText = `*🤖 MENU DE COMANDOS DISPONÍVEIS 🤖*\n\n` +
+                `*--- Geração de Listas ---*\n` +
+                `*!gerar [n]*\n_Gera uma planilha com [n] contatos válidos._\nEx: \`!gerar 15\`\n\n` +
+                `*!aniversariantes [hoje|mes]*\n_Cria uma lista de aniversariantes._\nEx: \`!aniversariantes mes\`\n\n` +
+                `*--- Configuração da Campanha ---*\n` +
+                `*!texto [sua mensagem]*\n_Define o texto da campanha. Use @nome, @cpf, etc._\n\n` +
+                `*.ver*\n_Pré-visualiza a mensagem da campanha, incluindo imagem ou áudio, se houver._\n\n` +
+                `*--- Execução e Gerenciamento ---*\n` +
+                `*.enviar [início] [fim]*\n_Inicia o envio da campanha para um intervalo de linhas da sua planilha._\nEx: \`.enviar 2 100\`\n\n` +
+                `*!buscar [termo]*\n_Busca um contato na sua base de dados._\nEx: \`!buscar joão silva\`\n\n` +
+                `*.del [tipo]*\n_Apaga um arquivo da sua pasta._\nEx: \`.del imagem\`, \`.del audio\`, \`.del lista\`\n\n` +
+                `*--- Arquivos ---*\n` +
+                `_Para usar uma *planilha, imagem ou áudio*, basta enviar o arquivo diretamente para mim._`;
             await message.reply(helpText);
         }
     },
@@ -264,12 +268,13 @@ const commands = [
                 if (imagePath) {
                     const media = MessageMedia.fromFilePath(imagePath);
                     await message.reply(media, undefined, { caption: fullMessage });
-                } else if (audioExists) {
-                    await message.reply(fullMessage);
-                    const media = MessageMedia.fromFilePath(audioPath);
-                    await message.reply(media);
                 } else {
                     await message.reply(fullMessage);
+                }
+                if (audioExists) {
+                   
+                    const media = MessageMedia.fromFilePath(audioPath);
+                    await message.reply(media);
                 }
             } catch (error) {
                 console.error(`Erro no comando .ver para ${clientId}:`, error);

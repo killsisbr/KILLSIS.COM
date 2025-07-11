@@ -139,12 +139,8 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
             campaignStats.totalProcessed++;
             const dados = dadosFiltrados[i];
             const nomeCompleto = dados.NOME || 'Cliente';
-            let enviadoComSucesso = false;
 
-            if (!dados.CPF) {
-                campaignStats.ignoredNoCpf++;
-                continue;
-            }
+
 
             const numerosParaTentar = [
                 dados.DDD_01 && dados.TEL_01 ? `55${dados.DDD_01}${dados.TEL_01}` : null,
@@ -166,7 +162,8 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
                             reply(`🟡 Ignorado (envio recente): ${nomeCompleto}`);
                             ignore = 1;
                         }
-                        campaignStats.ignoredRecent++;
+                        campaignStats.ignoredRecent + 1;
+                        
                         continue; // Pula para o próximo contato da planilha.
                     }
 
@@ -180,34 +177,36 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
                                 .replace(/@cpf/gi, dados.CPF)
                                 .replace(/@agencia/gi, dados.AGENCIA);
 
-                            const imagePath = path.join(userDirBase, clientWhatsappNumber, 'imagem.jpeg');
-                            const audioPath = path.join(userDirBase, clientWhatsappNumber, 'audio.ogg');
 
-                            const imageExists = fs.existsSync(imagePath);
+                            // --- INÍCIO DA LÓGICA CORRIGIDA ---
+                            let imagePath = '';
+                            const imageExtensions = ['jpeg', 'jpg', 'png', 'gif', 'webp'];
+                            for (const ext of imageExtensions) {
+                                const tempPath = path.join(userDirBase, clientWhatsappNumber, `imagem.${ext}`);
+                                if (fs.existsSync(tempPath)) {
+                                    imagePath = tempPath;
+                                    break;
+                                }
+                            }
+
+                            const audioPath = path.join(userDirBase, clientWhatsappNumber, 'audio.ogg');
                             const audioExists = fs.existsSync(audioPath);
 
-                            // --- MODIFICAÇÃO INICIA AQUI ---
-
-                            // 1. Envia a mensagem de texto primeiro, independentemente da mídia.
-                            await client.sendMessage(numeroComWhatsapp, textoFinal);
-
-                            // Pequena pausa para as mensagens não chegarem "coladas"
-                            await new Promise(resolve => setTimeout(resolve, 500));
-
-                            // 2. Se a imagem existir, envia a imagem.
-                            if (imageExists) {
+                            // Prioriza o envio de imagem com legenda
+                            if (imagePath) {
                                 const imageMedia = MessageMedia.fromFilePath(imagePath);
-                                await client.sendMessage(numeroComWhatsapp, imageMedia);
-                                await new Promise(resolve => setTimeout(resolve, 500)); // Pausa opcional
-                            }
+                                await client.sendMessage(numeroComWhatsapp, imageMedia, { caption: textoFinal });
+                            } else {
+                                // Se não houver imagem, envia o texto primeiro
+                                await client.sendMessage(numeroComWhatsapp, textoFinal);
 
-                            // 3. Se o áudio existir, envia o áudio.
+                                // E depois, se houver áudio, envia como nota de voz
+                            }
                             if (audioExists) {
                                 const audioMedia = MessageMedia.fromFilePath(audioPath);
-                                // Para áudio, a opção 'sendAudioAsVoice' garante que ele apareça como mensagem de voz.
                                 await client.sendMessage(numeroComWhatsapp, audioMedia, { sendAudioAsVoice: true });
                             }
-                            // --- MODIFICAÇÃO TERMINA AQUI ---
+                            // --- FIM DA LÓGICA CORRIGIDA ---
 
 
                             dbService.saveOrUpdateContact({
@@ -216,7 +215,7 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
                                 nascimento: dados.NASCIMENTO
                             }, clientWhatsappNumber);
                             dbService.logCampaignSend(clientWhatsappNumber, dados.CPF, 'SENT');
-
+                            campaignStats.successfulSends + 1;
                             enviadoComSucesso = true;
                             break;
                         } else {
@@ -243,6 +242,7 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
         - *✅ Enviados com Sucesso:* ${campaignStats.successfulSends}
         - *⭕ Sem WhatsApp (Tentativas):* ${campaignStats.noWhatsapp}
         - *🚫 Sem Contato Válido:* ${campaignStats.noContactInfo}
+        - *🟡 Ignorado (envio recente):*${campaignStats.ignoredRecent}
         ---------------------------------`;
 
         reply(summary);
