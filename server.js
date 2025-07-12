@@ -39,6 +39,7 @@ app.post('/api/register', authService.registerHandler);
 app.post('/api/login', authService.loginHandler);
 
 
+
 // --- Rotas Protegidas da API ---
 app.get('/api/user/me', authService.verifyToken, (req, res) => res.json(req.user));
 app.get('/api/stats', authService.verifyToken, statsService.getStatsHandler);
@@ -61,6 +62,83 @@ app.get('/api/contacts', authService.verifyToken, (req, res) => {
     } catch (error) {
         console.error("Erro na rota /api/contacts:", error);
         res.status(500).json({ message: 'Erro ao buscar contatos.' });
+    }
+});
+
+
+// Rota para ATUALIZAR um contato (mudar nome)
+app.put('/api/contacts/:id', authService.verifyToken, (req, res) => {
+    try {
+        const { id } = req.params;
+        const { nome } = req.body;
+        
+        // CORREÇÃO: Usa o ID de usuário correto do token (seja 'id' ou 'userId')
+        const userId = req.user.id || req.user.userId;
+        if (!userId) {
+            return res.status(403).json({ message: 'ID de usuário não encontrado no token de autenticação.' });
+        }
+
+        const freshUser = dbService.findUserById(userId);
+
+        if (!freshUser) {
+            return res.status(404).json({ message: 'Usuário autenticado não encontrado no sistema.' });
+        }
+
+        const clientWhatsappNumber = freshUser.command_whatsapp_number;
+
+        if (!clientWhatsappNumber) {
+            return res.status(400).json({ message: 'Cliente WhatsApp não associado.' });
+        }
+        if (!nome || typeof nome !== 'string' || nome.trim() === '') {
+            return res.status(400).json({ message: 'O novo nome é obrigatório.' });
+        }
+
+        const success = dbService.updateContact(id, { nome }, clientWhatsappNumber);
+        
+        if (success) {
+            res.json({ message: 'Contato atualizado com sucesso.' });
+        } else {
+            res.status(404).json({ message: 'Contato não encontrado.' });
+        }
+    } catch (error) {
+        console.error("Erro na rota PUT /api/contacts/:id:", error);
+        res.status(500).json({ message: 'Erro ao atualizar contato.' });
+    }
+});
+
+// Rota para APAGAR um contato
+app.delete('/api/contacts/:id', authService.verifyToken, (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // CORREÇÃO: Usa o ID de usuário correto do token (seja 'id' ou 'userId')
+        const userId = req.user.id || req.user.userId;
+        if (!userId) {
+            return res.status(403).json({ message: 'ID de usuário não encontrado no token de autenticação.' });
+        }
+        
+        const freshUser = dbService.findUserById(userId);
+
+        if (!freshUser) {
+            return res.status(404).json({ message: 'Usuário autenticado não encontrado no sistema.' });
+        }
+
+        const clientWhatsappNumber = freshUser.command_whatsapp_number;
+
+        if (!clientWhatsappNumber) {
+            return res.status(400).json({ message: 'Cliente WhatsApp não associado.' });
+        }
+
+        const success = dbService.deleteContact(id, clientWhatsappNumber);
+
+        if (success) {
+            res.json({ message: 'Contato apagado com sucesso.' });
+        } else {
+            res.status(404).json({ message: 'Contato não encontrado.' });
+        }
+    } catch (error) {
+        console.error("Erro na rota DELETE /api/contacts/:id:", error);
+        res.status(500).json({ message: 'Erro ao apagar contato.' });
     }
 });
 

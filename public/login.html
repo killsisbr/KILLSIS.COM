@@ -238,6 +238,10 @@
     <script>
         let socket;
         let tabelaPreview = '';
+        // Variáveis para guardar o estado atual do modal
+        let lastModalFilter = 'default';
+        let lastModalSearch = '';
+
 
         $(document).ready(function () {
             const token = localStorage.getItem('jwtToken');
@@ -420,7 +424,6 @@
             const parts = dateString.split(/[/.-]/);
             if (parts.length !== 3) return null;
             
-            // CORREÇÃO: Interpretar como M/D/YY
             let month = parseInt(parts[0], 10);
             let day = parseInt(parts[1], 10);
             let year = parseInt(parts[2], 10);
@@ -461,7 +464,6 @@
                     if (!c.nascimento) return false;
                     const parts = c.nascimento.split(/[/.-]/);
                     if (parts.length !== 3) return false;
-                    // CORREÇÃO: Interpretar como M/D/YY
                     return parseInt(parts[0], 10) === currentMonth && parseInt(parts[1], 10) === currentDay;
                 });
                 $('#birthdays-today').text(birthdaysToday.length);
@@ -501,7 +503,6 @@
             for (const group in ageGroups) {
                 const count = ageGroups[group];
                 const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : 0;
-                // CORREÇÃO: Cálculo da largura da barra
                 const barWidth = maxCount > 0 ? (count / maxCount) * 100 : 0;
                 const barHtml = `<div class="flex items-center"><div class="w-16 text-sm text-gray-300">${group}</div><div class="flex-1 bg-white/10 rounded-full h-6 mr-2"><div class="${colors[group]} h-6 rounded-full" style="width: ${barWidth}%"></div></div><div class="w-20 text-right text-sm font-semibold">${count} (${percentage}%)</div></div>`;
                 chartContainer.append(barHtml);
@@ -514,6 +515,8 @@
         }
 
         async function showContactsInModal(filtro = 'default', termoBusca = '') {
+            lastModalFilter = filtro;
+            lastModalSearch = termoBusca;
             try {
                 const token = localStorage.getItem('jwtToken');
                 const response = await fetch(`/api/contacts?filter=${filtro}&search=${encodeURIComponent(termoBusca)}`, { headers: { 'Authorization': `Bearer ${token}` } });
@@ -619,13 +622,12 @@
 
         function renderizarTabelaModal(dados) {
             if (!dados || dados.length === 0) return '<p class="text-center text-gray-400 p-8">Nenhum contato encontrado.</p>';
-            let tabela = '<div class="overflow-x-auto"><table class="contacts-table w-full text-sm"><thead><tr><th>Nome</th><th>CPF</th><th>Agência</th><th>Nascimento</th><th>Idade</th><th>Telefone</th><th>Último Envio</th></tr></thead><tbody>';
+            let tabela = '<div class="overflow-x-auto"><table class="contacts-table w-full text-sm"><thead><tr><th>Nome</th><th>CPF</th><th>Agência</th><th>Nascimento</th><th>Idade</th><th>Telefone</th><th>Último Envio</th><th>Ações</th></tr></thead><tbody>';
             dados.forEach(contato => {
                 const numeroTelefone = contato.telefone || '';
                 let telefoneHtml = numeroTelefone ? `<a href="https://wa.me/${numeroTelefone}" target="_blank" class="text-blue-400 hover:underline" title="Abrir conversa">${numeroTelefone}</a>` : '';
                 const idade = calculateAge(contato.nascimento);
                 
-                // CORREÇÃO: Formata a data M/D/YY para DD/MM/YYYY para exibição
                 let dataNascimentoFormatada = '';
                 if (contato.nascimento) {
                     const parts = contato.nascimento.split(/[/.-]/);
@@ -635,7 +637,7 @@
                         let year = parseInt(parts[2], 10);
                         if (!isNaN(year)) {
                             if (year < 100) year += (year < 30) ? 2000 : 1900;
-                            dataNascimentoFormatada = `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+                            dataNascimentoFormatada = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
                         } else {
                             dataNascimentoFormatada = contato.nascimento;
                         }
@@ -645,10 +647,73 @@
                 }
                 
                 const dataEnvio = contato.data_envio_ultima_mensagem ? new Date(contato.data_envio_ultima_mensagem).toLocaleDateString('pt-BR') : '';
-                tabela += `<tr><td>${contato.nome || ''}</td><td>${contato.cpf || ''}</td><td>${contato.agencia || ''}</td><td>${dataNascimentoFormatada}</td><td>${idade !== null ? idade : 'N/A'}</td><td>${telefoneHtml}</td><td>${dataEnvio}</td></tr>`;
+                tabela += `<tr>
+                                <td>${contato.nome || ''}</td>
+                                <td>${contato.cpf || ''}</td>
+                                <td>${contato.agencia || ''}</td>
+                                <td>${dataNascimentoFormatada}</td>
+                                <td>${idade !== null ? idade : 'N/A'}</td>
+                                <td>${telefoneHtml}</td>
+                                <td>${dataEnvio}</td>
+                                <td class="p-2 space-x-2 whitespace-nowrap">
+                                    <button onclick="editContact(${contato.id}, '${String(contato.nome || '').replace(/'/g, "\\'")}')" class="text-yellow-400 hover:text-yellow-300 font-semibold">Editar</button>
+                                    <button onclick="deleteContact(${contato.id})" class="text-red-500 hover:text-red-400 font-semibold">Apagar</button>
+                                </td>
+                            </tr>`;
             });
             tabela += '</tbody></table></div>';
             return tabela;
+        }
+
+        async function editContact(contactId, currentName) {
+            const newName = prompt("Digite o novo nome para o contato:", currentName);
+            if (newName && newName.trim() !== '' && newName !== currentName) {
+                try {
+                    const token = localStorage.getItem('jwtToken');
+                    const response = await fetch(`/api/contacts/${contactId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ nome: newName })
+                    });
+                    const result = await response.json();
+                    if (response.ok) {
+                        $.notify(result.message, { className: "success", position: "top center" });
+                        showContactsInModal(lastModalFilter, lastModalSearch); // Atualiza a tabela
+                        loadDashboardData(); // Atualiza o dashboard
+                    } else {
+                        throw new Error(result.message || 'Falha ao atualizar contato.');
+                    }
+                } catch (error) {
+                    console.error("Erro ao editar contato:", error);
+                    $.notify(error.message, { className: "error", position: "top center" });
+                }
+            }
+        }
+
+        async function deleteContact(contactId) {
+            if (confirm("Tem certeza que deseja apagar este contato? Esta ação não pode ser desfeita.")) {
+                try {
+                    const token = localStorage.getItem('jwtToken');
+                    const response = await fetch(`/api/contacts/${contactId}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    const result = await response.json();
+                    if (response.ok) {
+                        $.notify(result.message, { className: "success", position: "top center" });
+                        showContactsInModal(lastModalFilter, lastModalSearch); // Atualiza a tabela
+                        loadDashboardData(); // Atualiza o dashboard
+                    } else {
+                        throw new Error(result.message || 'Falha ao apagar contato.');
+                    }
+                } catch (error) {
+                    console.error("Erro ao apagar contato:", error);
+                    $.notify(error.message, { className: "error", position: "top center" });
+                }
+            }
         }
 
         function criarListaCsv(dados, filtro) {

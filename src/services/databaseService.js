@@ -157,10 +157,12 @@ function getFilteredContacts(clientWhatsappNumber, filter = 'default', searchTer
     let baseQuery = 'SELECT * FROM contatos WHERE 1=1';
     const params = [];
 
-    if (searchTerm) {
-        const normalizedSearchTerm = searchTerm.replace(/\D/g, '');
-        baseQuery += ' AND (nome LIKE ? OR cpf LIKE ? OR telefone LIKE ? OR nascimento LIKE ?)';
-        params.push(`%${searchTerm}%`, `%${normalizedSearchTerm}%`, `%${normalizedSearchTerm}%`, `%${searchTerm}%`);
+ 
+
+    if (searchTerm && searchTerm.trim() !== '') {
+        const likeTerm = `%${searchTerm}%`;
+        baseQuery += ' AND (LOWER(nome) LIKE LOWER(?) OR cpf LIKE ? OR telefone LIKE ? OR nascimento LIKE ?)';
+        params.push(likeTerm, likeTerm, likeTerm, likeTerm);
     }
 
     const hoje = new Date();
@@ -205,6 +207,38 @@ const getStats = (clientWhatsappNumber) => {
     return db.prepare(query).all();
 };
 
+
+// --- NOVAS FUNÇÕES PARA EDITAR E APAGAR ---
+
+/**
+ * Atualiza os dados de um contato específico.
+ * @param {number} id - O ID do contato a ser atualizado.
+ * @param {object} data - O objeto com os novos dados (ex: { nome: 'Novo Nome' }).
+ * @param {string} clientWhatsappNumber - O ID do cliente.
+ * @returns {boolean} - True se a atualização foi bem-sucedida.
+ */
+function updateContact(id, data, clientWhatsappNumber) {
+    const db = getUserDb(clientWhatsappNumber);
+    // Por enquanto, atualiza apenas o nome. Pode ser expandido facilmente.
+    const stmt = db.prepare('UPDATE contatos SET nome = ? WHERE id = ?');
+    const result = stmt.run(data.nome, id);
+    return result.changes > 0;
+}
+
+/**
+ * Apaga um contato específico do banco de dados.
+ * @param {number} id - O ID do contato a ser apagado.
+ * @param {string} clientWhatsappNumber - O ID do cliente.
+ * @returns {boolean} - True se a exclusão foi bem-sucedida.
+ */
+function deleteContact(id, clientWhatsappNumber) {
+    const db = getUserDb(clientWhatsappNumber);
+    const stmt = db.prepare('DELETE FROM contatos WHERE id = ?');
+    const result = stmt.run(id);
+    return result.changes > 0;
+}
+
+
 module.exports = { 
     // Funções de Autenticação
     findUserByUsername, 
@@ -221,6 +255,8 @@ module.exports = {
     saveOrUpdateContact,
     checkRecentSend, // A função agora verifica por telefone
     getFilteredContacts,
+    updateContact,
+    deleteContact, 
 
     // Gestão de Conexões
     closeAllConnections
