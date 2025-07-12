@@ -38,10 +38,6 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.ht
 app.post('/api/register', authService.registerHandler);
 app.post('/api/login', authService.loginHandler);
 
-// --- Rota Protegida para o Dashboard ---
-app.get('/dashboard.html', authService.verifyToken, (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-});
 
 // --- Rotas Protegidas da API ---
 app.get('/api/user/me', authService.verifyToken, (req, res) => res.json(req.user));
@@ -51,6 +47,15 @@ app.get('/api/contacts', authService.verifyToken, (req, res) => {
     try {
         const clientId = req.user.clientId;
         const { filter, search } = req.query;
+
+        // ✅ VERIFICAÇÃO ADICIONADA AQUI
+        if (!clientId) {
+            // Se o usuário não tem um clientId (WhatsApp não conectado),
+            // retorna uma lista vazia em vez de quebrar o servidor.
+            console.log(`Usuário '${req.user.username}' tentou acessar contatos sem um clientId. Retornando lista vazia.`);
+            return res.json([]); // Retorna um array vazio
+        }
+
         const contacts = dbService.getFilteredContacts(clientId, filter, search);
         res.json(contacts);
     } catch (error) {
