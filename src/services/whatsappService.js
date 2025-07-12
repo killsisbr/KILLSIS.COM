@@ -38,12 +38,12 @@ function initializeClient(sessionIdentifier, userObject, socket, isCentralBot = 
         return;
     }
 
-    
+
     // --- INÍCIO DA CORREÇÃO ---
     // Verifica se um cliente já existe e se ele está em um estado funcional (não é um "zumbi").
     if (clients[sanitizedIdentifier]) {
         const existingClient = clients[sanitizedIdentifier];
-        
+
         // A presença de 'pupBrowser' é um bom indicador de que o cliente não foi destruído.
         if (existingClient.pupBrowser) {
             console.log(`Sessão para ${sanitizedIdentifier} já existe e está ativa. Tentando reconectar.`);
@@ -121,17 +121,17 @@ function initializeClient(sessionIdentifier, userObject, socket, isCentralBot = 
                 if (client.user && (client.user.id || client.user.userId)) {
                     const userId = client.user.id || client.user.userId;
                     console.log(`[WhatsApp Service] Usuário (ID: ${userId}, Username: ${client.user.username}) encontrado. Tentando atualizar o número...`);
-                    
+
                     dbService.updateUserWhatsappNumber(userId, whatsappNumber);
-                    
+
                     client.user.command_whatsapp_number = whatsappNumber;
                     client.user.clientId = whatsappNumber;
-                    
+
                     console.log(`[WhatsApp Service] SUCESSO: Associação no DB para ${client.user.username} concluída. Número salvo: ${whatsappNumber}`);
                 } else {
                     console.error(`[WhatsApp Service] ERRO CRÍTICO: Cliente '${sanitizedIdentifier}' conectado, mas o objeto 'client.user' está faltando ou incompleto.`);
                     console.error('[WhatsApp Service] O número do WhatsApp NÃO será salvo no banco de dados. Detalhes do client.user:', client.user);
-                    if(socket) {
+                    if (socket) {
                         socket.emit('error', 'Conectado ao WhatsApp, mas falha ao associar o número à sua conta. Por favor, tente fazer login novamente.');
                     }
                 }
@@ -183,50 +183,64 @@ function initializeClient(sessionIdentifier, userObject, socket, isCentralBot = 
     });
 
     client.on('message', async (message) => {
-         const userMessage = message.body;
-    const userId = message.from; // ID único do usuário
+        const userMessage = message.body;
+        const userId = message.from; // ID único do usuário
 
-    // --- Rota para o Chatbot ---
-    // Responde se a mensagem começar com '!ia'
-    if (userMessage.toLowerCase().startsWith('!ia ')) {
-        const prompt = userMessage.substring(4); // Pega o texto após '!ia '
-        
-        message.reply('🤖 Pensando...'); // Feedback para o usuário
 
-        const aiResponse = await geminiChatService.sendMessageToAI(userId, prompt);
-        message.reply(aiResponse);
-        return;
-    }
+        if (!message.fromMe) {
+            try {
+                // Aplica apenas a conversas de usuário, não a status ou grupos.
+                if (message.from.endsWith('@c.us')) {
+                    const chat = await message.getChat();
+                    await chat.unarchive();
+                    console.log(`[WhatsApp Service] Chat com ${message.from.replace('@c.us', '')} desarquivado automaticamente.`);
 
-    // --- Rota para Análise de Imagem ---
-    // Responde se o usuário enviar uma imagem com uma legenda começando com '!analisar'
-    if (message.hasMedia && message.body.toLowerCase().startsWith('!analisar ')) {
-        const prompt = message.body.substring(10) + ', responda em portugues.'; // Pega o texto após '!analisar '
-        
-        message.reply('🖼️ Analisando a imagem...');
-
-        try {
-            const media = await message.downloadMedia();
-            if (media && media.mimetype.startsWith('image/')) {
-                // Salva a imagem temporariamente
-                const filePath = `./temp_media.${media.mimetype.split('/')[1]}`;
-                fs.writeFileSync(filePath, Buffer.from(media.data, 'base64'));
-
-                // Chama o serviço de análise
-                const analysisResult = await geminiFileService.analyzeFile(prompt, filePath, media.mimetype);
-                message.reply(analysisResult);
-
-                // Apaga o arquivo temporário
-                fs.unlinkSync(filePath);
-            } else {
-                message.reply("Por favor, envie uma imagem válida para análise.");
+                }
+            } catch (error) {
+                console.error(`[WhatsApp Service] Erro ao tentar desarquivar o chat para ${message.from.replace('@c.us', '')}:`, error);
             }
-        } catch (error) {
-            console.error("Erro ao baixar ou analisar mídia:", error);
-            message.reply("Ocorreu um erro ao processar sua imagem.");
         }
-        return;
-    }
+        // --- Rota para o Chatbot ---
+        // Responde se a mensagem começar com '!ia'
+        if (userMessage.toLowerCase().startsWith('!ia ')) {
+            const prompt = userMessage.substring(4); // Pega o texto após '!ia '
+
+            message.reply('🤖 Pensando...'); // Feedback para o usuário
+
+            const aiResponse = await geminiChatService.sendMessageToAI(userId, prompt);
+            message.reply(aiResponse);
+            return;
+        }
+
+        // --- Rota para Análise de Imagem ---
+        // Responde se o usuário enviar uma imagem com uma legenda começando com '!analisar'
+        if (message.hasMedia && message.body.toLowerCase().startsWith('!analisar ')) {
+            const prompt = message.body.substring(10) + ', responda em portugues.'; // Pega o texto após '!analisar '
+
+            message.reply('🖼️ Analisando a imagem...');
+
+            try {
+                const media = await message.downloadMedia();
+                if (media && media.mimetype.startsWith('image/')) {
+                    // Salva a imagem temporariamente
+                    const filePath = `./temp_media.${media.mimetype.split('/')[1]}`;
+                    fs.writeFileSync(filePath, Buffer.from(media.data, 'base64'));
+
+                    // Chama o serviço de análise
+                    const analysisResult = await geminiFileService.analyzeFile(prompt, filePath, media.mimetype);
+                    message.reply(analysisResult);
+
+                    // Apaga o arquivo temporário
+                    fs.unlinkSync(filePath);
+                } else {
+                    message.reply("Por favor, envie uma imagem válida para análise.");
+                }
+            } catch (error) {
+                console.error("Erro ao baixar ou analisar mídia:", error);
+                message.reply("Ocorreu um erro ao processar sua imagem.");
+            }
+            return;
+        }
         const commandService = require('./commandService');
         if (!isCentralBot) {
             return;
@@ -242,7 +256,7 @@ function initializeClient(sessionIdentifier, userObject, socket, isCentralBot = 
                 const c = clients[key];
                 if (c.isUserClient && c.whatsappNumber === senderNumber) {
                     user = c.user;
-                    console.log(`[Central Bot] Usuário encontrado na sessão ativa: ${user.username}`);
+                    //    console.log(`[Central Bot] Usuário encontrado na sessão ativa: ${user.username}`);
                     break;
                 }
             }

@@ -151,20 +151,14 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
             if (numerosParaTentar.length === 0) {
                 campaignStats.noContactInfo++;
             } else {
-                let ignore = 0;
                 for (const numero of numerosParaTentar) {
                     // *** CORREÇÃO LÓGICA ***
                     // A verificação de envio recente agora é feita por numero
                     // antes de tentar qualquer um dos seus números.
                     if (dbService.checkRecentSend(numero, clientWhatsappNumber)) {
-
-                        if (ignore === 0) {
-                            reply(`🟡 Ignorado (envio recente): ${nomeCompleto}`);
-                            ignore = 1;
-                        }
-                        campaignStats.ignoredRecent + 1;
-                        
-                        continue; // Pula para o próximo contato da planilha.
+                        reply(`🟡 Envio recente, foi ignorado: ${nomeCompleto}`);
+                        campaignStats.ignoredRecent ++;
+                        break; // Pula para o próximo contato da planilha.
                     }
 
                     const numeroComWhatsapp = `${numero}@c.us`;
@@ -177,8 +171,6 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
                                 .replace(/@cpf/gi, dados.CPF)
                                 .replace(/@agencia/gi, dados.AGENCIA);
 
-
-                            // --- INÍCIO DA LÓGICA CORRIGIDA ---
                             let imagePath = '';
                             const imageExtensions = ['jpeg', 'jpg', 'png', 'gif', 'webp'];
                             for (const ext of imageExtensions) {
@@ -206,7 +198,6 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
                                 const audioMedia = MessageMedia.fromFilePath(audioPath);
                                 await client.sendMessage(numeroComWhatsapp, audioMedia, { sendAudioAsVoice: true });
                             }
-                            // --- FIM DA LÓGICA CORRIGIDA ---
 
 
                             dbService.saveOrUpdateContact({
@@ -217,18 +208,29 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
                             dbService.logCampaignSend(clientWhatsappNumber, dados.CPF, 'SENT');
                             campaignStats.successfulSends + 1;
                             enviadoComSucesso = true;
+                            // Arquiva a conversa após o envio bem-sucedido
+                            await client.archiveChat(numeroComWhatsapp);
                             break;
                         } else {
-                            dbService.logCampaignSend(clientWhatsappNumber, dados.CPF, 'NO_WHATSAPP');
+                         //   dbService.logCampaignSend(clientWhatsappNumber, dados.CPF, 'NO_WHATSAPP');
                             campaignStats.noWhatsapp++;
                         }
                     } catch (e) {
-                        dbService.logCampaignSend(clientWhatsappNumber, dados.CPF, 'FAILED');
+                       // dbService.logCampaignSend(clientWhatsappNumber, dados.CPF, 'FAILED');
                         campaignStats.failedToSend++;
                     }
                 }
             }
-
+            // *** Contabiliza as estatísticas APÓS todas as tentativas para o contato ***
+            if (enviadoComSucesso) {
+                campaignStats.successfulSends++;
+            } else {
+                // Só incrementa se não foi ignorado e nenhuma tentativa teve sucesso
+                if (!contatoIgnorado) {
+                    campaignStats.noWhatsapp++;
+                    dbService.logCampaignSend(clientWhatsappNumber, dados.CPF, 'NO_WHATSAPP');
+                }
+            }
             await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 2000));
         }
     } catch (error) {
@@ -242,7 +244,7 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
         - *✅ Enviados com Sucesso:* ${campaignStats.successfulSends}
         - *⭕ Sem WhatsApp (Tentativas):* ${campaignStats.noWhatsapp}
         - *🚫 Sem Contato Válido:* ${campaignStats.noContactInfo}
-        - *🟡 Ignorado (envio recente):*${campaignStats.ignoredRecent}
+        - *🟡 Ignorado (envio recente):* ${campaignStats.ignoredRecent}
         ---------------------------------`;
 
         reply(summary);

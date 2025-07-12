@@ -6,6 +6,46 @@ const XLSX = require('xlsx');
 const { startCampaign } = require('../services/campaignService');
 const whatsappService = require('../services/whatsappService'); // Importado para usar o getClient
 
+
+//texto do ajuda
+let helpText = `🤖 MENU DE COMANDOS DISPONÍVEIS 🤖\n` +
+
+    `📊--- Geração de Listas ---📊\n` +
+
+    `📈 !gerar [n]\n` +
+    `Gera uma planilha com [n] contatos válidos.\n` +
+    `Ex: !gerar 15\n` +
+    `🎂 !aniversariantes [hoje|mes]\n` +
+    `Cria uma lista de aniversariantes. 🎉\n` +
+    `Ex: !aniversariantes mes\n\n` +
+
+    `⚙️--- Configuração da Campanha ---⚙️\n` +
+
+    `✍️ !texto [sua mensagem]\n` +
+    `Define o texto da campanha. Use @nome, @agencia, @nomecompleto. \n\n` +
+
+    `👀 .ver\n` +
+    `Pré-visualiza a mensagem da campanha, incluindo imagem ou áudio, se houver. 🖼️🎧\n\n` +
+
+    `🚀--- Execução e Gerenciamento ---🚀\n` +
+
+    `📩 .enviar [início] [fim]\n` +
+    `Inicia o envio da campanha para um intervalo de linhas da sua planilha.\n` +
+    `Ex: .enviar 2 100\n\n` +
+
+    `🔍 !buscar [termo]\n` +
+    `Busca um contato na sua base de dados. 👤\n` +
+    `Ex: 🔍 Use essa lupa no chat do cliente.\n` +
+
+    `🗑️ apagar [tipo]\n` +
+    `Apaga um arquivo da sua pasta. ❌\n` +
+    `Ex: apagar imagem, apagar audio, apagar lista\n\n` +
+
+    `📁--- Arquivos ---📁\n` +
+
+    `Para usar uma planilha 📊, imagem 🖼️ ou áudio 🎧, basta enviar o arquivo diretamente para mim. 👉🤖`;
+
+
 // --- LOG DE DEPURAÇÃO ---
 console.log('✅ [Commands] Módulos carregados: dbService, fs, path, XLSX, campaignService, whatsappService.');
 
@@ -13,7 +53,7 @@ console.log('✅ [Commands] Módulos carregados: dbService, fs, path, XLSX, camp
 // --- Funções Auxiliares para o Comando !gerar ---
 
 function generateRandomBrazilianPhoneNumber() {
-    const ddds = ['41', '42', '43', '44', '45']; 
+    const ddds = ['41', '42', '43', '44', '45'];
     const randomDdd = ddds[Math.floor(Math.random() * ddds.length)];
     let number = '9'; // Garante que comece com 9
     for (let i = 0; i < 7; i++) { // 7 dígitos restantes para um total de 8
@@ -36,30 +76,25 @@ function generateRandomBirthday() {
 
 const commands = [
     {
-        command: '👋',
-        description: 'Envia uma saudação de volta.',
+        command: '!register',
+        description: 'Inicia a configuração do cliente.',
         action: async (message) => {
             const contact = await message.getContact();
-            await message.reply(`Olá, ${contact.pushname}! Como posso ajudar? 👋`);
+            await message.reply(`Olá, ${contact.pushname}! vamos configurar?`);
+        }
+    },
+    {
+        command: 'Ajuda',
+        description: 'Inicia a configuração do cliente.',
+        action: async (message) => {
+            const contact = await message.getContact();
+            await message.reply(`Olá, ${contact.pushname}!\n${helpText}`);
         }
     },
     {
         command: '!ajuda',
         description: 'Mostra a lista de comandos disponíveis.',
         action: async (message) => {
-               let helpText = `*🤖 MENU DE COMANDOS DISPONÍVEIS 🤖*\n\n` +
-                `*--- Geração de Listas ---*\n` +
-                `*!gerar [n]*\n_Gera uma planilha com [n] contatos válidos._\nEx: \`!gerar 15\`\n\n` +
-                `*!aniversariantes [hoje|mes]*\n_Cria uma lista de aniversariantes._\nEx: \`!aniversariantes mes\`\n\n` +
-                `*--- Configuração da Campanha ---*\n` +
-                `*!texto [sua mensagem]*\n_Define o texto da campanha. Use @nome, @cpf, etc._\n\n` +
-                `*.ver*\n_Pré-visualiza a mensagem da campanha, incluindo imagem ou áudio, se houver._\n\n` +
-                `*--- Execução e Gerenciamento ---*\n` +
-                `*.enviar [início] [fim]*\n_Inicia o envio da campanha para um intervalo de linhas da sua planilha._\nEx: \`.enviar 2 100\`\n\n` +
-                `*!buscar [termo]*\n_Busca um contato na sua base de dados._\nEx: \`!buscar joão silva\`\n\n` +
-                `*.del [tipo]*\n_Apaga um arquivo da sua pasta._\nEx: \`.del imagem\`, \`.del audio\`, \`.del lista\`\n\n` +
-                `*--- Arquivos ---*\n` +
-                `_Para usar uma *planilha, imagem ou áudio*, basta enviar o arquivo diretamente para mim._`;
             await message.reply(helpText);
         }
     },
@@ -116,7 +151,7 @@ const commands = [
             if (validContactsForExcel.length > 0) {
                 const outputFileName = `lista_gerada.xlsx`; // Nome de arquivo fixo
                 const outputPath = path.join(userDirBase, clientId, outputFileName);
-                
+
                 const ws = XLSX.utils.json_to_sheet(validContactsForExcel);
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, 'Contatos Gerados');
@@ -151,9 +186,9 @@ const commands = [
 
                 const outputFileName = `aniversariantes_${filterType}.xlsx`; // Nome de arquivo fixo
                 const outputPath = path.join(userDirBase, clientId, outputFileName);
-                
+
                 await message.reply(`📊 Gerando planilha \`${outputFileName}\` com ${contacts.length} aniversariante(s)...`);
-                
+
                 const ws = XLSX.utils.json_to_sheet(contacts);
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, `Aniversariantes ${filterType}`);
@@ -232,7 +267,7 @@ const commands = [
 
             const campaignOptions = {
                 campaignId: clientId, username: user.username,
-                start: inicio -1 , end: fim - 1, // Corrigido
+                start: inicio - 1, end: fim - 1, // Corrigido
                 message: messageContent
                 , listFileName: listFileName, useAI: false
             };
@@ -272,7 +307,7 @@ const commands = [
                     await message.reply(fullMessage);
                 }
                 if (audioExists) {
-                   
+
                     const media = MessageMedia.fromFilePath(audioPath);
                     await message.reply(media);
                 }
@@ -283,10 +318,10 @@ const commands = [
         }
     },
     {
-        command: '.del',
+        command: 'Apagar',
         description: 'Apaga mídia (audio/imagem) ou lista. Uso: `.del [audio|imagem|lista]`',
         action: async (message, user, clientId, socket, centralBotWhatsappNumber, userDirBase) => {
-            const mediaType = message.body.replace('.del ', '').trim().toLowerCase();
+            const mediaType = message.body.replace('Apagar ', '').trim().toLowerCase();
             let filePathToDelete = '';
             let replyMessage = '';
 
@@ -294,6 +329,17 @@ const commands = [
                 filePathToDelete = path.join(userDirBase, clientId, 'audio.ogg');
                 replyMessage = '✅ Áudio Apagado com Sucesso!';
             } else if (mediaType === 'imagem') {
+                const imageExtensions = ['jpeg', 'jpg', 'png', 'gif', 'webp'];
+                for (const ext of imageExtensions) {
+                    const tempPath = path.join(userDirBase, clientId, `imagem.${ext}`);
+                    if (fs.existsSync(tempPath)) {
+                        filePathToDelete = tempPath;
+                        replyMessage = `✅ Imagem .${ext} Apagada!`;
+                        break;
+                    }
+                }
+                if (!filePathToDelete) return message.reply('❌ Você não tem imagem salva!');
+            } else if (mediaType === 'foto') {
                 const imageExtensions = ['jpeg', 'jpg', 'png', 'gif', 'webp'];
                 for (const ext of imageExtensions) {
                     const tempPath = path.join(userDirBase, clientId, `imagem.${ext}`);
