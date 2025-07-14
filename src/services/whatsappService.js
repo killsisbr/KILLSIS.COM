@@ -52,7 +52,7 @@ async function initializeClient(sessionIdentifier, userObject, socket, isCentral
         if (clients[sanitizedIdentifier]) {
             console.log(`[?] Verificando sessão existente para ${sanitizedIdentifier}.`);
             const existingClient = clients[sanitizedIdentifier];
-            
+
             let needsRestart = false;
             try {
                 if (existingClient.pupBrowser && existingClient.pupBrowser.isConnected()) {
@@ -66,7 +66,7 @@ async function initializeClient(sessionIdentifier, userObject, socket, isCentral
                         }
                         // Libera o bloqueio se a sessão estiver boa
                         initializingSessions.delete(sanitizedIdentifier);
-                        return; 
+                        return;
                     }
                 }
                 console.warn(`[!] Sessão para ${sanitizedIdentifier} não está funcional. Marcada para reinicialização.`);
@@ -96,11 +96,10 @@ async function initializeClient(sessionIdentifier, userObject, socket, isCentral
         const client = new Client({
             puppeteer: {
                 args: ['--no-sandbox', '--disable-setuid-sandbox'],
-                headless: true,
+                headless: false, // Mudar para false
             },
             authStrategy: new LocalAuth({ clientId: sanitizedIdentifier, dataPath: userDir })
         });
-
         client.isUserClient = !isCentralBot;
         client.whatsappNumber = null;
         client.user = userObject;
@@ -181,34 +180,34 @@ async function initializeClient(sessionIdentifier, userObject, socket, isCentral
                     console.error(`[WhatsApp Service] Erro ao tentar desarquivar o chat para ${message.from.replace('@c.us', '')}:`, error);
                 }
             }
-    
+
             const commandService = require('./commandService');
             if (!isCentralBot) {
                 return;
             }
             if (!message.from.includes('@c.us')) return;
-    
+
             try {
                 const senderNumber = message.from.replace('@c.us', '');
                 let user = dbService.findUserByWhatsappNumber(senderNumber);
-    
+
                 if (!user) {
                     if (message.body.startsWith('.') || message.body.startsWith('!')) {
                         return message.reply('❌ Seu número de WhatsApp não está associado a uma conta. Por favor, faça login no painel web primeiro para registrar seu número.');
                     }
                     return;
                 }
-    
+
                 dbService.getUserDb(senderNumber);
                 const userSanitizedIdentifier = sanitizeIdentifier(user.username);
                 const userSocket = clients[userSanitizedIdentifier]?.socket || null;
                 await commandService.handleCommand(message, user, senderNumber, userSocket, getCentralBotWhatsappNumber());
-    
+
             } catch (error) {
                 console.error('[Central Bot] Erro no manipulador de mensagens:', error);
                 await message.reply('❌ Ocorreu um erro interno ao processar seu comando.');
             }
-    
+
             if (message.hasMedia && message.body.toLowerCase().startsWith('!analisar') && isCentralBot) {
                 const prompt = message.body.substring(10) + ', responda em portugues, curtas e diretas.';
                 try {
