@@ -405,15 +405,78 @@
             }
         }
 
+        // Função de formatação de data para exibição no frontend (nova ou aprimorada)
+        function formatarDataParaExibicao(data) {
+            if (!data) return '';
+            let date;
+
+            if (typeof data === 'string') {
+                const parts = data.split(/[\/\-\.]/); // Divide por '/', '-' ou '.'
+                if (parts.length === 3) {
+                    let p1 = parseInt(parts[0], 10); // Dia ou Mês
+                    let p2 = parseInt(parts[1], 10); // Mês ou Dia
+                    let p3 = parseInt(parts[2], 10); // Ano
+
+                    let tempDate = new Date(p3, p2 - 1, p1); // Tenta MM/DD/YYYY ou DD/MM/YYYY (dependendo do input)
+
+                    if (String(p3).length === 2) { // Se o ano tiver 2 dígitos, tenta inferir o século
+                        let fullYear = p3;
+                        if (fullYear < 30) { // Ex: 00-29 -> 2000-2029
+                            fullYear += 2000;
+                        } else { // Ex: 30-99 -> 1930-1999
+                            fullYear += 1900;
+                        }
+                        // Tenta DD/MM/YY primeiro
+                        tempDate = new Date(fullYear, p2 - 1, p1);
+                        if (tempDate.getMonth() + 1 === p2 && tempDate.getDate() === p1) { // Verifica se a data é válida no formato DD/MM/YY
+                            date = tempDate;
+                        } else { // Se não, tenta MM/DD/YY
+                            tempDate = new Date(fullYear, p1 - 1, p2);
+                            if (tempDate.getMonth() + 1 === p1 && tempDate.getDate() === p2) { // Verifica se a data é válida no formato MM/DD/YY
+                                date = tempDate;
+                            }
+                        }
+                    } else if (String(p3).length === 4) { // Ano já tem 4 dígitos
+                        // Tenta DD/MM/YYYY primeiro
+                        tempDate = new Date(p3, p2 - 1, p1);
+                        if (tempDate.getMonth() + 1 === p2 && tempDate.getDate() === p1) { // Verifica se a data é válida no formato DD/MM/YYYY
+                            date = tempDate;
+                        } else { // Se não, tenta MM/DD/YYYY
+                            tempDate = new Date(p3, p1 - 1, p2);
+                            if (tempDate.getMonth() + 1 === p1 && tempDate.getDate() === p2) { // Verifica se a data é válida no formato MM/DD/YYYY
+                                date = tempDate;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (date && !isNaN(date.getTime())) {
+                const day = String(date.getDate()).padStart(2, '0');
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const year = date.getFullYear();
+                return `${day}/${month}/${year}`;
+            }
+            return data || ''; // Retorna o original se não conseguir formatar, ou string vazia
+        }
+
+
         function calculateAge(dateString) {
-            if (!dateString || typeof dateString !== 'string') return null;
-            const parts = dateString.split(/[/.-]/);
+            // Usa a nova função de formatação para garantir que a data esteja no formato correto para cálculo
+            const formattedDateString = formatarDataParaExibicao(dateString);
+            if (!formattedDateString || typeof formattedDateString !== 'string') return null;
+
+            const parts = formattedDateString.split(/[/.-]/);
             if (parts.length !== 3) return null;
-            let day, month, year;
-            if (parts[2] && parts[2].length === 4) { [day, month, year] = parts.map(p => parseInt(p, 10)); }
-            else { [month, day, year] = parts.map(p => parseInt(p, 10)); }
+
+            // Assume DD/MM/YYYY após a formatação
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10);
+            const year = parseInt(parts[2], 10);
+
+
             if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
-            if (year < 100) year += (year < 30) ? 2000 : 1900;
+
             const birthDate = new Date(year, month - 1, day);
             const today = new Date();
             let age = today.getFullYear() - birthDate.getFullYear();
@@ -433,10 +496,13 @@
                 $('#total-contacts').text(contacts.length);
                 const today = new Date();
                 const birthdaysToday = contacts.filter(c => {
-                    if (!c.nascimento) return false;
-                    const parts = c.nascimento.split(/[/.-]/);
+                    // Formata a data antes de comparar
+                    const formattedNascimento = formatarDataParaExibicao(c.nascimento);
+                    if (!formattedNascimento) return false;
+
+                    const parts = formattedNascimento.split(/[/.-]/);
                     if (parts.length < 2) return false;
-                    return parseInt(parts[1]) === today.getMonth() + 1 && parseInt(parts[0]) === today.getDate();
+                    return parseInt(parts[0]) === today.getDate() && parseInt(parts[1]) === (today.getMonth() + 1);
                 }).length;
                 $('#birthdays-today').text(birthdaysToday);
 
@@ -506,11 +572,12 @@
             if (!dados || dados.length === 0) return '<p class="text-center text-gray-400 p-8">Nenhum contato encontrado.</p>';
             let tabela = '<div class="overflow-x-auto"><table class="contacts-table w-full text-sm"><thead><tr><th>Nome</th><th>CPF</th><th>Telefone</th><th>Nascimento</th><th>Ações</th></tr></thead><tbody>';
             dados.forEach(contato => {
+                const dataNascimentoFormatada = formatarDataParaExibicao(contato.nascimento); // Usa a função de formatação
                 tabela += `<tr>
                     <td>${contato.nome || ''}</td>
                     <td>${contato.cpf || ''}</td>
                     <td>${contato.telefone ? `<a href="https://wa.me/${contato.telefone}" target="_blank" class="text-blue-400 hover:underline">${contato.telefone}</a>` : ''}</td>
-                    <td>${contato.nascimento || ''}</td>
+                    <td>${dataNascimentoFormatada || ''}</td>
                     <td class="p-2 space-x-2"><button onclick="editContact(${contato.id}, '${String(contato.nome || '').replace(/'/g, "\\'")}')" class="text-yellow-400">Editar</button><button onclick="deleteContact(${contato.id})" class="text-red-500">Apagar</button></td>
                 </tr>`;
             });
@@ -578,7 +645,9 @@
             // 1. Gráfico de Idade
             const ageGroups = { '0-25': 0, '26-40': 0, '41-55': 0, '56+': 0, 'N/A': 0 };
             data.forEach(c => {
-                const age = calculateAge(c.nascimento || c.Nascimento);
+                // Usa a nova função de formatação para garantir que a data esteja no formato correto para cálculo
+                const formattedNascimento = formatarDataParaExibicao(c.nascimento || c.Nascimento); 
+                const age = calculateAge(formattedNascimento); // calculateAge já tem a lógica de inferência de ano
                 if (age === null) ageGroups['N/A']++;
                 else if (age <= 25) ageGroups['0-25']++;
                 else if (age <= 40) ageGroups['26-40']++;
@@ -697,7 +766,13 @@
                         table += '<tr>';
                         table += `<td class="p-2 text-center font-semibold bg-gray-800">${rowIndex + 1}</td>`;
                         for (let colIndex = 0; colIndex < maxCols; colIndex++) {
-                            table += `<td class="p-2">${String(rowData[colIndex] || '').trim()}</td>`;
+                            // Aplica a formatação de data para a coluna "Nascimento" se for identificada
+                            const headerValue = (json[0][colIndex] || '').toLowerCase();
+                            if (headerValue.includes('nascimento') || headerValue.includes('data_nascimento') || headerValue.includes('dt_nascimento')) {
+                                table += `<td class="p-2">${formatarDataParaExibicao(String(rowData[colIndex] || '').trim())}</td>`;
+                            } else {
+                                table += `<td class="p-2">${String(rowData[colIndex] || '').trim()}</td>`;
+                            }
                         }
                         table += '</tr>';
                     }
@@ -775,7 +850,9 @@
                 const telefone = (item.telefone || "").toString();
                 const ddd = telefone.slice(2, 4);
                 const tel = telefone.slice(4);
-                const linha = [`"${(item.nome || "").replace(/"/g, '""')}"`, `"${(item.cpf || "").replace(/"/g, '""')}"`, `"${(item.agencia || "").replace(/"/g, '""')}"`, `"${(item.nascimento || "").replace(/"/g, '""')}"`, `"${ddd}"`, `"${tel}"`, `"${(item.data_envio_ultima_mensagem || "").replace(/"/g, '""')}"`];
+                // Garante que a data de nascimento seja formatada corretamente ao exportar
+                const nascimentoFormatado = formatarDataParaExibicao(item.nascimento);
+                const linha = [`"${(item.nome || "").replace(/"/g, '""')}"`, `"${(item.cpf || "").replace(/"/g, '""')}"`, `"${(item.agencia || "").replace(/"/g, '""')}"`, `"${nascimentoFormatado || ""}"`, `"${ddd}"`, `"${tel}"`, `"${(item.data_envio_ultima_mensagem || "").replace(/"/g, '""')}"`];
                 csv += linha.join(";") + "\n";
             });
             const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
