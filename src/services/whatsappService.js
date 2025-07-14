@@ -96,7 +96,7 @@ async function initializeClient(sessionIdentifier, userObject, socket, isCentral
         const client = new Client({
             puppeteer: {
                 args: ['--no-sandbox', '--disable-setuid-sandbox'],
-                headless: false, // Mudar para false
+                headless: true, // Mudar para false
             },
             authStrategy: new LocalAuth({ clientId: sanitizedIdentifier, dataPath: userDir })
         });
