@@ -3,7 +3,7 @@ const fs = require('fs');
 require('dotenv').config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest"});
 
 /**
  * Converte um arquivo local para o formato que a API do Gemini entende.

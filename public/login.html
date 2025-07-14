@@ -6,52 +6,41 @@
     <title>Whatsapp Assistant</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* Estilos gerais e para consistência do tema */
         body {
             font-family: 'Inter', sans-serif;
-            background-image: url('/draw.png');
+            background-image: url('https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?q=80&w=2071&auto=format&fit=crop');
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
         }
-
-        /* Efeito de Vidro para Containers */
         .glass-container {
-            background: rgba(28, 37, 54, 0.6); /* Fundo escuro semitransparente */
+            background: rgba(28, 37, 54, 0.6);
             backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px); /* Suporte para Safari */
-            border-radius: 1rem; /* 16px */
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 1rem;
             border: 1px solid rgba(255, 255, 255, 0.1);
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
         }
-
-        /* Efeito de Vidro para Botões */
         .btn-glass {
             background: rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(5px);
-            -webkit-backdrop-filter: blur(5px);
             border: 1px solid rgba(255, 255, 255, 0.18);
             transition: background-color 0.3s ease, transform 0.2s ease;
         }
-
         .btn-glass:hover {
             background: rgba(255, 255, 255, 0.2);
             transform: translateY(-2px);
         }
-        
-        /* Estilo para Inputs */
         .input-glass {
             background-color: rgba(0, 0, 0, 0.2) !important;
             border-color: rgba(255, 255, 255, 0.2) !important;
         }
-
         .log-success { background-color: rgba(46, 125, 50, 0.8); color: #fff; }
         .log-error { background-color: rgba(198, 40, 40, 0.8); color: #fff; }
         .log-warn { background-color: rgba(249, 168, 37, 0.8); color: #000; }
-
-        /* Estilos para a tabela de contatos no modal */
         .contacts-table { border-collapse: collapse; width: 100%; }
         .contacts-table th, .contacts-table td {
             border: 1px solid rgba(255, 255, 255, 0.2);
@@ -66,14 +55,17 @@
             top: 0;
             z-index: 10;
         }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
     </style>
 </head>
 
 <body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
 
-    <!-- Container de Autenticação -->
     <div id="auth-container" class="w-full max-w-sm">
-        <!-- Secção de Login -->
         <div id="login-screen">
             <form id="login-form" onsubmit="handleLogin(event)"
                 class="glass-container p-6 md:p-8 space-y-6">
@@ -98,8 +90,6 @@
                 </p>
             </form>
         </div>
-
-        <!-- Secção de Registo -->
         <div id="register-screen" class="hidden">
             <form id="register-form" onsubmit="handleRegister(event)"
                 class="glass-container p-6 md:p-8 space-y-6">
@@ -127,24 +117,21 @@
         </div>
     </div>
 
-    <!-- Container Principal da Aplicação -->
     <div id="app-container" class="hidden w-full max-w-6xl glass-container p-6 md:p-8">
-        <!-- Cabeçalho com botão de Logout -->
         <div class="flex justify-between items-center mb-4">
             <h1 class="text-xl font-bold">Whatsapp Assistant</h1>
             <button onclick="logout()"
                 class="btn-glass text-white font-bold py-2 px-4 rounded-md text-sm">Sair</button>
         </div>
 
-        <!-- Menu -->
         <div class="flex justify-around mb-6 border-b border-gray-700/50 pb-4">
             <a href="#dashboard" class="menu-link px-4 py-2 rounded-md hover:bg-white/10 transition-colors duration-200">Dashboard</a>
             <a href="#disparo" class="menu-link px-4 py-2 rounded-md hover:bg-white/10 transition-colors duration-200">Disparo</a>
+            <a href="#admin" class="menu-link px-4 py-2 rounded-md hover:bg-white/10 transition-colors duration-200">Administrador</a>
             <a href="#retorno" class="menu-link px-4 py-2 rounded-md hover:bg-white/10 transition-colors duration-200">Logs</a>
             <a href="#whatsapp-lateral" class="menu-link px-4 py-2 rounded-md hover:bg-white/10 transition-colors duration-200">WhatsApp</a>
         </div>
 
-        <!-- Secção de Disparo -->
         <div class="sidebar space-y-4" id="disparo">
             <div>
                 <label class="block text-sm font-medium text-gray-300 mb-1">1. Escolha uma lista (.csv, .xlsx)</label>
@@ -171,7 +158,6 @@
             <button id="sendButton" onclick="enviarValores()" class="w-full btn-glass text-white font-bold py-3 px-4 rounded-md text-lg">Enviar!</button>
         </div>
 
-        <!-- Secção do Dashboard -->
         <div class="sidebar" id="dashboard">
             <h2 class="text-2xl font-bold mb-6">Dashboard de Contatos</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -200,8 +186,38 @@
                 </div>
             </div>
         </div>
+        
+        <div class="sidebar" id="admin">
+            <h2 class="text-2xl font-bold mb-4">Painel do Administrador</h2>
+            <p class="text-gray-400 mb-6">Analise os dados das suas listas importadas e extraia insights para as suas campanhas.</p>
+            
+            <div class="glass-container p-4 mb-6">
+                <label for="admin-sheet-select" class="block text-sm font-medium text-gray-300 mb-2">Selecione uma lista para analisar:</label>
+                <select id="admin-sheet-select" class="input-glass w-full rounded-md px-3 py-2 text-white placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="">-- Carregando listas... --</option>
+                </select>
+            </div>
 
-        <!-- Secção do QR Code -->
+            <div id="admin-dashboard-content" class="hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <div class="glass-container p-6"><h3 class="text-lg font-bold mb-4">Distribuição por Idade</h3><div class="chart-container"><canvas id="admin-age-chart"></canvas></div></div>
+                    <div class="glass-container p-6"><h3 class="text-lg font-bold mb-4">Distribuição por Agência</h3><div class="chart-container"><canvas id="admin-agency-chart"></canvas></div></div>
+                    <div class="glass-container p-6"><h3 class="text-lg font-bold mb-4">Distribuição por DDD</h3><div class="chart-container"><canvas id="admin-ddd-chart"></canvas></div></div>
+                </div>
+                <div class="glass-container p-6">
+                    <h3 class="text-lg font-bold mb-4">Baixar Lista de Contatos</h3>
+                    <div class="flex items-center gap-4">
+                        <input type="number" id="download-rows-input" placeholder="Nº de linhas" class="input-glass rounded-md px-3 py-2 text-white placeholder-gray-400 w-40">
+                        <button id="download-csv-btn" class="btn-glass text-white font-bold py-2 px-4 rounded-md flex-1">Baixar CSV</button>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2">Deixe em branco para baixar a lista completa.</p>
+                </div>
+            </div>
+             <div id="admin-no-data" class="text-center py-10 text-gray-400">
+                <p>Nenhuma lista selecionada ou as listas importadas estão vazias.</p>
+            </div>
+        </div>
+
         <div class="sidebar text-center" id="whatsapp-lateral">
             <h1 class="text-2xl font-bold mb-4">Status do WhatsApp</h1>
             <p class="text-gray-400 mb-4">Aponte seu celular para ler o QR Code, caso seja solicitado.</p>
@@ -209,7 +225,6 @@
             <div id="whatsapp-status" class="mt-4 font-semibold"></div>
         </div>
 
-        <!-- Secção de Retorno/Logs -->
         <div class="sidebar" id="retorno">
             <h2 class="text-xl font-bold mb-4">Logs de Envio</h2>
             <div class="text-right text-xs text-gray-400 mb-2 pr-2">Mais recente ↑ | Mais antigo ↓</div>
@@ -217,7 +232,6 @@
         </div>
     </div>
 
-    <!-- Modal -->
     <div id="modalPreview" class="fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4 z-50 hidden">
         <div class="glass-container w-full max-w-6xl max-h-[90vh] flex flex-col">
             <div class="flex justify-between items-center p-4 border-b border-gray-700/50">
@@ -229,7 +243,6 @@
         </div>
     </div>
 
-    <!-- Bibliotecas JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/notify/0.4.2/notify.min.js"></script>
@@ -238,10 +251,11 @@
     <script>
         let socket;
         let tabelaPreview = '';
-        // Variáveis para guardar o estado atual do modal
         let lastModalFilter = 'default';
         let lastModalSearch = '';
 
+        let adminCharts = {};
+        let currentAdminData = [];
 
         $(document).ready(function () {
             const token = localStorage.getItem('jwtToken');
@@ -264,14 +278,8 @@
 
         async function handleRegister(event) {
             event.preventDefault();
-            $('#register-error').text('');
-            $('#register-success').text('');
             const username = $('#register-username').val();
             const password = $('#register-password').val();
-            if (!username || !password) {
-                $('#register-error').text("Utilizador e senha são obrigatórios.");
-                return;
-            }
             try {
                 const response = await fetch('/api/register', {
                     method: 'POST',
@@ -279,28 +287,18 @@
                     body: JSON.stringify({ username, password })
                 });
                 const result = await response.json();
-                if (response.ok) {
-                    $('#register-success').text(result.message + " Você pode fazer o login agora.");
-                    $('#register-form')[0].reset();
-                    setTimeout(() => toggleAuthScreens(event), 2500);
-                } else {
-                    $('#register-error').text(result.message || 'Erro desconhecido ao registar.');
-                }
+                if (!response.ok) throw new Error(result.message);
+                $('#register-success').text(result.message + " Faça o login.");
+                setTimeout(() => toggleAuthScreens(event), 2000);
             } catch (error) {
-                console.error("Erro no registo:", error);
-                $('#register-error').text("Erro de conexão ao tentar registar.");
+                $('#register-error').text(error.message);
             }
         }
 
         async function handleLogin(event) {
             event.preventDefault();
-            $('#login-error').text('');
             const username = $('#login-username').val();
             const password = $('#login-password').val();
-            if (!username || !password) {
-                $('#login-error').text("Utilizador e senha são obrigatórios.");
-                return;
-            }
             try {
                 const response = await fetch('/api/login', {
                     method: 'POST',
@@ -308,15 +306,11 @@
                     body: JSON.stringify({ username, password })
                 });
                 const result = await response.json();
-                if (response.ok) {
-                    localStorage.setItem('jwtToken', result.token);
-                    window.location.reload();
-                } else {
-                    $('#login-error').text(result.message || 'Credenciais inválidas.');
-                }
+                if (!response.ok) throw new Error(result.message);
+                localStorage.setItem('jwtToken', result.token);
+                window.location.reload();
             } catch (error) {
-                console.error("Erro no login:", error);
-                $('#login-error').text("Erro de conexão ao tentar fazer login.");
+                $('#login-error').text(error.message);
             }
         }
 
@@ -337,40 +331,30 @@
         }
 
         function setupSocketListeners() {
-            socket.on('connect_error', (err) => {
-                if (err.message === "Token inválido.") handleAuthError();
-            });
-            socket.on('qr', function (url) {
+            socket.on('connect_error', (err) => { if (err.message === "Token inválido.") handleAuthError(); });
+            socket.on('qr', url => {
                 switchView('#whatsapp-lateral');
                 $('#qrcode').attr('src', url).show();
-                $('#whatsapp-status').text('Por favor, escaneie o QR Code.').removeClass('text-green-400 text-red-400');
+                $('#whatsapp-status').text('Por favor, escaneie o QR Code.');
             });
-            socket.on('ready', function () {
+            socket.on('ready', () => {
                 $('#qrcode').hide();
-                $('#whatsapp-status').text('WhatsApp conectado com sucesso!').removeClass('text-red-400').addClass('text-green-400');
+                $('#whatsapp-status').text('WhatsApp conectado!').addClass('text-green-400');
                 loadDashboardData();
-                setTimeout(() => switchView('#dashboard'), 2000);
+                setTimeout(() => switchView('#dashboard'), 1500);
             });
-            socket.on('disconnected', function () {
+            socket.on('disconnected', () => {
                 $('#whatsapp-status').text('WhatsApp desconectado.').removeClass('text-green-400').addClass('text-red-400');
-                $.notify("WhatsApp foi desconectado.", { className: "error", position: "top center" });
             });
-            socket.on('log', function (msg) {
-                let statusClass = 'log-error';
-                if (msg.includes('✅') || msg.includes('Sucesso') || msg.includes('🏁')) statusClass = 'log-success';
-                else if (msg.includes('🟡') || msg.includes('Atenção') || msg.includes('▶️')) statusClass = 'log-warn';
-                $('.logs').prepend(`<li class="${statusClass} p-2 rounded-md text-sm">${msg}</li>`);
-            });
-            socket.on('upload-success', (data) => console.log('Upload bem-sucedido:', data.fileName));
+            socket.on('log', msg => $('.logs').prepend(`<li class="p-2 rounded-md text-sm">${msg}</li>`));
             socket.on('campaign-finished', () => {
                 $('#sendButton').prop('disabled', false).text('Enviar!');
-                $.notify("Campanha finalizada!", { className: "success", position: "top center" });
             });
         }
 
         function handleAuthError() {
-            $.notify("Sessão expirada. Faça login novamente.", { className: "error", position: "top center" });
-            setTimeout(logout, 2000);
+            $.notify("Sessão expirada.", "error");
+            setTimeout(logout, 1500);
         }
 
         function parseJwt(token) {
@@ -379,42 +363,44 @@
 
         async function enviarValores() {
             const planilhaInput = $('#planilha')[0];
-            const valor1 = $('#valor1').val();
-            const valor2 = $('#valor2').val();
+            const valor1 = $('#valor1').val() - 1;
+            const valor2 = $('#valor2').val() - 1;
             const mensagem = $('#mensagem').val();
             const mediaInput = $('#mediaFile')[0];
 
-            if (!planilhaInput.files[0]) return $.notify("Selecione uma planilha.", { className: "error", position: "top center" });
-            if (!valor1 || !valor2 || parseInt(valor1) < 1 || parseInt(valor2) < parseInt(valor1)) return $.notify("Verifique os valores de início e final.", { className: "error", position: "top center" });
-            if (!socket) return $.notify("Conexão não estabelecida.", { className: "error", position: "top center" });
-
+            if (!planilhaInput.files[0] || !valor1 || !valor2) return $.notify("Preencha todos os campos obrigatórios.", "error");
+            
             $('#sendButton').prop('disabled', true).text('A preparar...');
             switchView('#retorno');
 
             try {
                 const token = localStorage.getItem('jwtToken');
                 const userData = parseJwt(token);
-                if (!userData || !userData.clientId) throw new Error("Conecte o WhatsApp primeiro.");
-                const clientId = userData.clientId;
+                if (!userData || !userData.clientId) throw new Error("Conecte o WhatsApp.");
+                
                 const listFile = planilhaInput.files[0];
                 const fileBuffer = await listFile.arrayBuffer();
-                socket.emit('upload-list', { id: clientId, file: fileBuffer, fileName: listFile.name });
-                $.notify("A enviar a lista...", { className: "warn", position: "top center" });
+                socket.emit('upload-list', { id: userData.clientId, file: fileBuffer, fileName: listFile.name });
 
                 if (mediaInput.files[0]) {
                     const mediaFile = mediaInput.files[0];
                     const mediaBuffer = await mediaFile.arrayBuffer();
-                    socket.emit('upload-media', { id: clientId, file: mediaBuffer, type: mediaFile.type });
-                    $.notify("A enviar a multimédia...", { className: "warn", position: "top center" });
+                    socket.emit('upload-media', { id: userData.clientId, file: mediaBuffer, type: mediaFile.type });
                 }
-                const campaignData = { id: clientId, username: userData.username, start: parseInt(valor1), end: parseInt(valor2), message: mensagem, listFileName: listFile.name };
+                
                 setTimeout(() => {
-                    $('#sendButton').text('A enviar mensagens...');
-                    socket.emit('start-sending', campaignData);
+                    $('#sendButton').text('A enviar...');
+                    socket.emit('start-sending', { 
+                        id: userData.clientId, 
+                        username: userData.username, 
+                        start: parseInt(valor1), 
+                        end: parseInt(valor2), 
+                        message: mensagem, 
+                        listFileName: listFile.name 
+                    });
                 }, 1500);
             } catch (error) {
-                console.error("Erro ao preparar campanha:", error);
-                $.notify(error.message, { className: "error", position: "top center" });
+                $.notify(error.message, "error");
                 $('#sendButton').prop('disabled', false).text('Enviar!');
             }
         }
@@ -423,17 +409,12 @@
             if (!dateString || typeof dateString !== 'string') return null;
             const parts = dateString.split(/[/.-]/);
             if (parts.length !== 3) return null;
-            
-            let month = parseInt(parts[0], 10);
-            let day = parseInt(parts[1], 10);
-            let year = parseInt(parts[2], 10);
-
+            let day, month, year;
+            if (parts[2] && parts[2].length === 4) { [day, month, year] = parts.map(p => parseInt(p, 10)); }
+            else { [month, day, year] = parts.map(p => parseInt(p, 10)); }
             if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
             if (year < 100) year += (year < 30) ? 2000 : 1900;
-            
-            const birthDate = new Date(Date.UTC(year, month - 1, day));
-            if (birthDate.getUTCFullYear() !== year || birthDate.getUTCMonth() + 1 !== month || birthDate.getUTCDate() !== day) return null;
-            
+            const birthDate = new Date(year, month - 1, day);
             const today = new Date();
             let age = today.getFullYear() - birthDate.getFullYear();
             const m = today.getMonth() - birthDate.getMonth();
@@ -445,35 +426,23 @@
             try {
                 const token = localStorage.getItem('jwtToken');
                 const response = await fetch(`/api/contacts?filter=default&search=`, { headers: { 'Authorization': `Bearer ${token}` } });
-                if (response.status === 401 || response.status === 403) return handleAuthError();
-                const data = await response.json();
-                if (data.error) {
-                    console.warn(data.error);
-                    $.notify(data.error, { className: "warn", position: "top center" });
-                    $('#total-contacts, #birthdays-today').text(0);
-                    $('#oldest-contact-date').text('N/A');
-                    renderAgeChart({}, 0);
-                    return;
-                }
-                const contacts = data.contacts || data;
-                if (!Array.isArray(contacts)) throw new Error('Resposta inesperada do servidor.');
-                $('#total-contacts').text(contacts.length);
-                const today = new Date(), currentMonth = today.getMonth() + 1, currentDay = today.getDate();
+                if (response.status >= 400) return handleAuthError();
+                const contacts = await response.json();
+                if (!Array.isArray(contacts)) return;
                 
+                $('#total-contacts').text(contacts.length);
+                const today = new Date();
                 const birthdaysToday = contacts.filter(c => {
                     if (!c.nascimento) return false;
                     const parts = c.nascimento.split(/[/.-]/);
-                    if (parts.length !== 3) return false;
-                    return parseInt(parts[0], 10) === currentMonth && parseInt(parts[1], 10) === currentDay;
-                });
-                $('#birthdays-today').text(birthdaysToday.length);
+                    if (parts.length < 2) return false;
+                    return parseInt(parts[1]) === today.getMonth() + 1 && parseInt(parts[0]) === today.getDate();
+                }).length;
+                $('#birthdays-today').text(birthdaysToday);
 
-                let oldestContactDate = 'N/A';
-                if (contacts.length > 0) {
-                    const sortedContacts = [...contacts].filter(c => c.data_envio_ultima_mensagem).sort((a, b) => new Date(a.data_envio_ultima_mensagem) - new Date(b.data_envio_ultima_mensagem));
-                    if (sortedContacts.length > 0) oldestContactDate = new Date(sortedContacts[0].data_envio_ultima_mensagem).toLocaleDateString('pt-BR');
-                }
-                $('#oldest-contact-date').text(oldestContactDate);
+                const oldestContact = contacts.filter(c => c.data_envio_ultima_mensagem).sort((a, b) => new Date(a.data_envio_ultima_mensagem) - new Date(b.data_envio_ultima_mensagem))[0];
+                $('#oldest-contact-date').text(oldestContact ? new Date(oldestContact.data_envio_ultima_mensagem).toLocaleDateString('pt-BR') : 'N/A');
+
                 const ageGroups = { '0-18': 0, '19-30': 0, '31-45': 0, '46-60': 0, '60+': 0, 'N/A': 0 };
                 contacts.forEach(c => {
                     const age = calculateAge(c.nascimento);
@@ -486,8 +455,7 @@
                 });
                 renderAgeChart(ageGroups, contacts.length);
             } catch (error) {
-                console.error("Erro ao carregar dados do dashboard:", error);
-                $.notify('Erro ao carregar dados do dashboard.', { className: "error", position: "top center" });
+                console.error("Erro no dashboard:", error);
             }
         }
 
@@ -495,7 +463,7 @@
             const chartContainer = $('#age-chart');
             chartContainer.empty();
             if (total === 0) {
-                chartContainer.html('<p class="text-gray-400">Sem dados de idade para exibir.</p>');
+                chartContainer.html('<p class="text-gray-400">Sem dados de idade.</p>');
                 return;
             }
             const maxCount = Math.max(...Object.values(ageGroups));
@@ -504,48 +472,7 @@
                 const count = ageGroups[group];
                 const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : 0;
                 const barWidth = maxCount > 0 ? (count / maxCount) * 100 : 0;
-                const barHtml = `<div class="flex items-center"><div class="w-16 text-sm text-gray-300">${group}</div><div class="flex-1 bg-white/10 rounded-full h-6 mr-2"><div class="${colors[group]} h-6 rounded-full" style="width: ${barWidth}%"></div></div><div class="w-20 text-right text-sm font-semibold">${count} (${percentage}%)</div></div>`;
-                chartContainer.append(barHtml);
-            }
-        }
-
-        function handleSearch() {
-            const searchTerm = $('#searchInput').val();
-            showContactsInModal('default', searchTerm);
-        }
-
-        async function showContactsInModal(filtro = 'default', termoBusca = '') {
-            lastModalFilter = filtro;
-            lastModalSearch = termoBusca;
-            try {
-                const token = localStorage.getItem('jwtToken');
-                const response = await fetch(`/api/contacts?filter=${filtro}&search=${encodeURIComponent(termoBusca)}`, { headers: { 'Authorization': `Bearer ${token}` } });
-                if (response.status === 401 || response.status === 403) return handleAuthError();
-                const data = await response.json();
-                if (data.error) {
-                    $('#previewContent').html(`<p class="text-center text-gray-400 p-8">${data.error}</p>`);
-                    $('#modalFooter').html('');
-                    $('#modalPreview').removeClass('hidden').addClass('flex');
-                    return;
-                }
-                const contacts = data.contacts || data;
-                let tabelaHtml = renderizarTabelaModal(contacts);
-                let footerHtml = '';
-                let modalTitle = 'Resultados da Busca';
-                if (filtro === 'aniversariantesHoje') modalTitle = "Aniversariantes do Dia";
-                else if (filtro === 'aniversariantesMes') modalTitle = "Aniversariantes do Mês";
-                else if (filtro === 'cemMaisAntigos') modalTitle = "100 Contatos Mais Antigos";
-                else if (filtro === 'default' && !termoBusca) modalTitle = "Todos os Contatos";
-                if (['aniversariantesHoje', 'aniversariantesMes', 'cemMaisAntigos', 'default'].includes(filtro) && contacts.length > 0) {
-                    footerHtml = `<button onclick='criarListaCsv(${JSON.stringify(contacts)}, "${filtro}")' class="btn-glass text-white font-bold py-2 px-4 rounded">Criar Lista CSV</button>`;
-                }
-                $('#modalTitle').text(modalTitle);
-                $('#previewContent').html(tabelaHtml);
-                $('#modalFooter').html(footerHtml);
-                $('#modalPreview').removeClass('hidden').addClass('flex');
-            } catch (error) {
-                console.error("Erro ao carregar contatos para o modal:", error);
-                $.notify('Erro ao carregar dados do banco.', { className: "error", position: "top center" });
+                chartContainer.append(`<div class="flex items-center"><div class="w-16 text-sm text-gray-300">${group}</div><div class="flex-1 bg-white/10 rounded-full h-6 mr-2"><div class="${colors[group]} h-6 rounded-full" style="width: ${barWidth}%"></div></div><div class="w-20 text-right text-sm font-semibold">${count} (${percentage}%)</div></div>`);
             }
         }
 
@@ -555,8 +482,173 @@
             $('.menu-link').removeClass('bg-white/20');
             $(`.menu-link[href="${targetId}"]`).addClass('bg-white/20');
             if (targetId === '#dashboard') loadDashboardData();
+            if (targetId === '#admin') setupAdminTab();
         }
 
+        async function showContactsInModal(filtro = 'default', termoBusca = '') {
+            lastModalFilter = filtro;
+            lastModalSearch = termoBusca;
+            try {
+                const token = localStorage.getItem('jwtToken');
+                const response = await fetch(`/api/contacts?filter=${filtro}&search=${encodeURIComponent(termoBusca)}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                if (response.status >= 400) return handleAuthError();
+                const contacts = await response.json();
+                $('#modalTitle').text("Visualização de Contatos");
+                $('#previewContent').html(renderizarTabelaModal(contacts));
+                $('#modalFooter').html(`<button onclick='criarListaCsv(${JSON.stringify(contacts)}, "${filtro}")' class="btn-glass text-white font-bold py-2 px-4 rounded">Criar Lista CSV</button>`);
+                $('#modalPreview').removeClass('hidden').addClass('flex');
+            } catch (error) {
+                $.notify('Erro ao carregar contatos.', "error");
+            }
+        }
+
+        function renderizarTabelaModal(dados) {
+            if (!dados || dados.length === 0) return '<p class="text-center text-gray-400 p-8">Nenhum contato encontrado.</p>';
+            let tabela = '<div class="overflow-x-auto"><table class="contacts-table w-full text-sm"><thead><tr><th>Nome</th><th>CPF</th><th>Telefone</th><th>Nascimento</th><th>Ações</th></tr></thead><tbody>';
+            dados.forEach(contato => {
+                tabela += `<tr>
+                    <td>${contato.nome || ''}</td>
+                    <td>${contato.cpf || ''}</td>
+                    <td>${contato.telefone ? `<a href="https://wa.me/${contato.telefone}" target="_blank" class="text-blue-400 hover:underline">${contato.telefone}</a>` : ''}</td>
+                    <td>${contato.nascimento || ''}</td>
+                    <td class="p-2 space-x-2"><button onclick="editContact(${contato.id}, '${String(contato.nome || '').replace(/'/g, "\\'")}')" class="text-yellow-400">Editar</button><button onclick="deleteContact(${contato.id})" class="text-red-500">Apagar</button></td>
+                </tr>`;
+            });
+            return tabela + '</tbody></table></div>';
+        }
+        
+        async function setupAdminTab() {
+            try {
+                const token = localStorage.getItem('jwtToken');
+                const response = await fetch('/api/imported-sheets', { headers: { 'Authorization': `Bearer ${token}` } });
+                if (response.status >= 400) return handleAuthError();
+                const tables = await response.json();
+                const selectEl = $('#admin-sheet-select');
+                selectEl.empty();
+                
+                if (tables.length === 0) {
+                    selectEl.append('<option value="">Nenhuma lista importada encontrada</option>');
+                    $('#admin-dashboard-content').addClass('hidden');
+                    $('#admin-no-data').removeClass('hidden');
+                } else {
+                    selectEl.append('<option value="">Selecione uma lista</option>');
+                    tables.forEach(tableName => {
+                        const displayName = tableName.replace(/import_|_[0-9]+/g, '');
+                        selectEl.append(`<option value="${tableName}">${displayName}</option>`);
+                    });
+                    $('#admin-no-data').addClass('hidden');
+                    selectEl.off('change').on('change', (e) => {
+                        const selectedTable = e.target.value;
+                        if (selectedTable) {
+                            loadAdminDataAndRenderCharts(selectedTable);
+                        } else {
+                             $('#admin-dashboard-content').addClass('hidden');
+                        }
+                    });
+                }
+            } catch (error) {
+                $.notify('Erro ao carregar listas para o painel de Administrador.', 'error');
+            }
+        }
+
+        async function loadAdminDataAndRenderCharts(tableName) {
+            try {
+                const token = localStorage.getItem('jwtToken');
+                const response = await fetch(`/api/imported-sheets/${tableName}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                if (response.status >= 400) return handleAuthError();
+                currentAdminData = await response.json();
+                
+                if(currentAdminData.length > 0){
+                    renderAdminCharts(currentAdminData);
+                    $('#admin-dashboard-content').removeClass('hidden');
+                    $('#admin-no-data').addClass('hidden');
+                } else {
+                    $('#admin-dashboard-content').addClass('hidden');
+                    $('#admin-no-data').removeClass('hidden');
+                }
+            } catch (error) {
+                 $.notify(`Erro ao carregar dados da lista ${tableName}.`, 'error');
+            }
+        }
+
+        function renderAdminCharts(data) {
+            // Destruir gráficos antigos para evitar sobreposição
+            Object.values(adminCharts).forEach(chart => chart.destroy());
+
+            // 1. Gráfico de Idade
+            const ageGroups = { '0-25': 0, '26-40': 0, '41-55': 0, '56+': 0, 'N/A': 0 };
+            data.forEach(c => {
+                const age = calculateAge(c.nascimento || c.Nascimento);
+                if (age === null) ageGroups['N/A']++;
+                else if (age <= 25) ageGroups['0-25']++;
+                else if (age <= 40) ageGroups['26-40']++;
+                else if (age <= 55) ageGroups['41-55']++;
+                else ageGroups['56+']++;
+            });
+            const ageCtx = document.getElementById('admin-age-chart').getContext('2d');
+            adminCharts.age = new Chart(ageCtx, {
+                type: 'bar',
+                data: { labels: Object.keys(ageGroups), datasets: [{ label: 'Nº de Contatos', data: Object.values(ageGroups), backgroundColor: 'rgba(79, 70, 229, 0.8)' }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+
+            // 2. Gráfico de Agência
+            const agencyCounts = data.reduce((acc, c) => {
+                const agency = c.agencia || c.Agencia || 'N/A';
+                acc[agency] = (acc[agency] || 0) + 1;
+                return acc;
+            }, {});
+            const agencyCtx = document.getElementById('admin-agency-chart').getContext('2d');
+            adminCharts.agency = new Chart(agencyCtx, {
+                type: 'doughnut',
+                data: { labels: Object.keys(agencyCounts), datasets: [{ data: Object.values(agencyCounts), backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'] }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+            });
+
+            // 3. Gráfico de DDD
+            const dddCounts = data.reduce((acc, c) => {
+                const phone = c.telefone || c.Telefone || c.TEL_01;
+                if (phone && String(phone).length >= 2) {
+                    const ddd = String(phone).substring(0, 2);
+                    acc[ddd] = (acc[ddd] || 0) + 1;
+                }
+                return acc;
+            }, {});
+            const dddCtx = document.getElementById('admin-ddd-chart').getContext('2d');
+            adminCharts.ddd = new Chart(dddCtx, {
+                type: 'bar',
+                data: { labels: Object.keys(dddCounts), datasets: [{ label: 'Nº de Contatos', data: Object.values(dddCounts), backgroundColor: 'rgba(234, 179, 8, 0.8)' }] },
+                options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } } }
+            });
+        }
+
+        $('#download-csv-btn').on('click', () => {
+            const tableName = $('#admin-sheet-select').val();
+            if (!tableName || currentAdminData.length === 0) {
+                return $.notify('Selecione uma lista com dados para baixar.', 'warn');
+            }
+            
+            const numRows = parseInt($('#download-rows-input').val()) || currentAdminData.length;
+            const dataToDownload = currentAdminData.slice(0, numRows);
+            
+            if (dataToDownload.length > 0) {
+                const headers = Object.keys(dataToDownload[0]);
+                let csv = headers.join(";") + "\n";
+                dataToDownload.forEach(item => {
+                    const row = headers.map(header => `"${(item[header] || "").toString().replace(/"/g, '""')}"`);
+                    csv += row.join(";") + "\n";
+                });
+                const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = `${tableName}.csv`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        });
+
+        // Funções adicionadas para o preview
         function abrirPreview() {
             if (tabelaPreview) {
                 $('#modalTitle').text('Pré-visualização da Lista');
@@ -564,7 +656,7 @@
                 $('#modalFooter').html('');
                 $('#modalPreview').removeClass('hidden').addClass('flex');
             } else {
-                return $.notify('Nenhuma planilha carregada para pré-visualizar!', { className: "warn", position: "top center" });
+                $.notify('Nenhuma planilha carregada para pré-visualizar!', { className: "warn", position: "top center" });
             }
         }
 
@@ -586,7 +678,8 @@
                     const worksheet = workbook.Sheets[firstSheetName];
                     const json = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: "" });
                     if (!json || json.length <= 1) {
-                        tabelaPreview = '<p class="text-center text-gray-400">A planilha está vazia.</p>';
+                        tabelaPreview = '<p class="text-center text-gray-400 p-8">A planilha está vazia ou tem apenas cabeçalhos.</p>';
+                        $.notify("A planilha parece estar vazia.", { className: "warn", position: "top center" });
                         return;
                     }
                     const maxCols = json.reduce((max, row) => Math.max(max, row.length), 0);
@@ -620,49 +713,9 @@
             reader.readAsArrayBuffer(file);
         }
 
-        function renderizarTabelaModal(dados) {
-            if (!dados || dados.length === 0) return '<p class="text-center text-gray-400 p-8">Nenhum contato encontrado.</p>';
-            let tabela = '<div class="overflow-x-auto"><table class="contacts-table w-full text-sm"><thead><tr><th>Nome</th><th>CPF</th><th>Agência</th><th>Nascimento</th><th>Idade</th><th>Telefone</th><th>Último Envio</th><th>Ações</th></tr></thead><tbody>';
-            dados.forEach(contato => {
-                const numeroTelefone = contato.telefone || '';
-                let telefoneHtml = numeroTelefone ? `<a href="https://wa.me/${numeroTelefone}" target="_blank" class="text-blue-400 hover:underline" title="Abrir conversa">${numeroTelefone}</a>` : '';
-                const idade = calculateAge(contato.nascimento);
-                
-                let dataNascimentoFormatada = '';
-                if (contato.nascimento) {
-                    const parts = contato.nascimento.split(/[/.-]/);
-                    if (parts.length === 3) {
-                        let month = parts[0];
-                        let day = parts[1];
-                        let year = parseInt(parts[2], 10);
-                        if (!isNaN(year)) {
-                            if (year < 100) year += (year < 30) ? 2000 : 1900;
-                            dataNascimentoFormatada = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
-                        } else {
-                            dataNascimentoFormatada = contato.nascimento;
-                        }
-                    } else {
-                        dataNascimentoFormatada = contato.nascimento;
-                    }
-                }
-                
-                const dataEnvio = contato.data_envio_ultima_mensagem ? new Date(contato.data_envio_ultima_mensagem).toLocaleDateString('pt-BR') : '';
-                tabela += `<tr>
-                                <td>${contato.nome || ''}</td>
-                                <td>${contato.cpf || ''}</td>
-                                <td>${contato.agencia || ''}</td>
-                                <td>${dataNascimentoFormatada}</td>
-                                <td>${idade !== null ? idade : 'N/A'}</td>
-                                <td>${telefoneHtml}</td>
-                                <td>${dataEnvio}</td>
-                                <td class="p-2 space-x-2 whitespace-nowrap">
-                                    <button onclick="editContact(${contato.id}, '${String(contato.nome || '').replace(/'/g, "\\'")}')" class="text-yellow-400 hover:text-yellow-300 font-semibold">Editar</button>
-                                    <button onclick="deleteContact(${contato.id})" class="text-red-500 hover:text-red-400 font-semibold">Apagar</button>
-                                </td>
-                            </tr>`;
-            });
-            tabela += '</tbody></table></div>';
-            return tabela;
+        function handleSearch() {
+            const searchTerm = $('#searchInput').val();
+            showContactsInModal('default', searchTerm);
         }
 
         async function editContact(contactId, currentName) {
@@ -681,13 +734,12 @@
                     const result = await response.json();
                     if (response.ok) {
                         $.notify(result.message, { className: "success", position: "top center" });
-                        showContactsInModal(lastModalFilter, lastModalSearch); // Atualiza a tabela
-                        loadDashboardData(); // Atualiza o dashboard
+                        showContactsInModal(lastModalFilter, lastModalSearch);
+                        loadDashboardData();
                     } else {
                         throw new Error(result.message || 'Falha ao atualizar contato.');
                     }
                 } catch (error) {
-                    console.error("Erro ao editar contato:", error);
                     $.notify(error.message, { className: "error", position: "top center" });
                 }
             }
@@ -704,13 +756,12 @@
                     const result = await response.json();
                     if (response.ok) {
                         $.notify(result.message, { className: "success", position: "top center" });
-                        showContactsInModal(lastModalFilter, lastModalSearch); // Atualiza a tabela
-                        loadDashboardData(); // Atualiza o dashboard
+                        showContactsInModal(lastModalFilter, lastModalSearch);
+                        loadDashboardData();
                     } else {
                         throw new Error(result.message || 'Falha ao apagar contato.');
                     }
                 } catch (error) {
-                    console.error("Erro ao apagar contato:", error);
                     $.notify(error.message, { className: "error", position: "top center" });
                 }
             }
@@ -735,7 +786,7 @@
             link.click();
             document.body.removeChild(link);
         }
+
     </script>
 </body>
-
 </html>

@@ -7,38 +7,32 @@ const whatsAppService = require('./whatsappService');
 const dbService = require('./databaseService');
 const mapeamentoConfig = require('../config/mapeamento');
 
-// Diretório base para dados do usuário
 const userDirBase = path.join(__dirname, '..', '..', 'user');
-
-// Controle para evitar campanhas simultâneas para o mesmo cliente
 const campaignsInProgress = new Set();
 
 // --- Funções Auxiliares ---
 
 function normalizarTelefone(telefone) {
-    telefone = telefone.replace(/\D/g, '');
-    while (telefone.length > 8) {
-        telefone = telefone.substring(1);
+    let clean = String(telefone).replace(/\D/g, '');
+    if (clean.length === 9 && clean.startsWith('9')) {
+        return clean.substring(1);
     }
-    return telefone;
+    return clean;
 }
-
 
 function formatarData(data) {
     if (!data) return '';
     if (typeof data === 'number') {
         const date_info = XLSX.SSF.parse_date_code(data);
-        const mes = String(date_info.d).padStart(2, '0');
-        const dia = String(date_info.m).padStart(2, '0');
+        const mes = String(date_info.m).padStart(2, '0');
+        const dia = String(date_info.d).padStart(2, '0');
         const ano = date_info.y;
         return `${dia}/${mes}/${ano}`;
     }
     const partes = String(data).split(/[\/\-\.]/);
     if (partes.length === 3) {
         let [p1, p2, p3] = partes;
-        if (p3.length === 4) {
-            return `${p1.padStart(2, '0')}/${p2.padStart(2, '0')}/${p3}`;
-        }
+        if (p3.length === 4) return `${p1.padStart(2, '0')}/${p2.padStart(2, '0')}/${p3}`;
     }
     return data;
 }
@@ -50,10 +44,23 @@ function ensureUserDirectoryExists(clientId) {
     }
 }
 
+function formatarNumeroCompleto(numero) {
+    if (!numero) return null;
+    let clean = String(numero).replace(/\D/g, '');
+
+    if (clean.startsWith('55') && (clean.length === 12 || clean.length === 13)) {
+        return clean; // Já está no formato correto
+    }
+    if (clean.length === 10 || clean.length === 11) {
+        return `55${clean}`; // Adiciona o código do país
+    }
+    return null; // Formato inválido
+}
+
 
 // --- Função Principal da Campanha ---
 
-async function startCampaign({ campaignId, username, start, end, message, listFileName, useAI }, { socket, commandMessage }) {
+async function startCampaign({ campaignId, username, start, end, message, listFileName }, { socket, commandMessage }) {
     const clientWhatsappNumber = campaignId || (socket && socket.user ? socket.user.commandWhatsappNumber : null);
     const clientUsername = username || (socket && socket.user ? socket.user.username : null);
 
@@ -62,63 +69,45 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
         if (socket) socket.emit('log', msg);
     };
 
-    if (!clientWhatsappNumber) {
-        return reply('❌ Erro: Número de WhatsApp do cliente não identificado para a campanha.');
-    }
-    if (!clientUsername) {
-        return reply('❌ Erro: Nome de usuário não identificado para a campanha.');
+    if (!clientWhatsappNumber || !clientUsername) {
+        return reply('❌ Erro: Informações do cliente não identificadas para a campanha.');
     }
     if (campaignsInProgress.has(clientWhatsappNumber)) {
-        return reply('🟡 Atenção: Uma campanha já está em andamento. Por favor, aguarde a finalização.');
+        return reply('🟡 Atenção: Uma campanha já está em andamento.');
     }
 
     const client = whatsAppService.getClient(clientUsername);
-    if (!client) {
-        return reply('❌ Erro: Cliente WhatsApp não encontrado ou não iniciado.');
-    }
-
-    const state = await client.getState();
-    if (state !== 'CONNECTED') {
-        return reply('❌ Erro: Cliente não está conectado. Vá para a aba WhatsApp e escaneie o QR Code.');
+    
+    if (!client || !client.info || !client.pupPage) {
+        return reply('❌ Erro: A sessão do WhatsApp ainda está a inicializar ou não está pronta. Por favor, aguarde a mensagem "Conectado com sucesso" e tente novamente em alguns segundos.');
     }
 
     ensureUserDirectoryExists(clientWhatsappNumber);
     const listPath = path.join(userDirBase, clientWhatsappNumber, listFileName);
     if (!fs.existsSync(listPath)) {
-        return reply(`❌ Erro: Planilha '${listFileName}' não foi encontrada no servidor.`);
+        return reply(`❌ Erro: Planilha '${listFileName}' não encontrada.`);
     }
 
-    const campaignStats = {
-        totalProcessed: 0, successfulSends: 0, ignoredRecent: 0,
-        ignoredNoCpf: 0, noWhatsapp: 0, failedToSend: 0, noContactInfo: 0
-    };
+    const campaignStats = { totalProcessed: 0, successfulSends: 0, ignoredRecent: 0, noWhatsapp: 0, failedToSend: 0, noContactInfo: 0 };
 
     try {
         campaignsInProgress.add(clientWhatsappNumber);
         reply('▶️ Iniciando processo de envio...');
 
         const workbook = XLSX.readFile(listPath);
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: "" });
 
-        if (jsonData.length < 2) {
-            return reply('❌ Erro: A planilha está vazia ou não contém dados.');
-        }
+        if (jsonData.length < 2) return reply('❌ Erro: A planilha está vazia.');
+        
         const headers = jsonData[0].map(h => String(h).toLowerCase().trim());
         const dadosPlanilha = jsonData.slice(1);
 
         const mapeamento = {};
         for (const key in mapeamentoConfig) {
-            const foundHeader = mapeamentoConfig[key].find(alias => headers.includes(alias));
-            if (foundHeader) {
-                mapeamento[key] = foundHeader;
-            } else if (key === 'cpf') {
-                return reply("❌ Erro: A planilha precisa ter uma coluna para 'CPF'.");
-            } else {
-                mapeamento[key] = null;
-            }
+            mapeamento[key] = mapeamentoConfig[key].find(alias => headers.includes(alias)) || null;
         }
+        if (!mapeamento.cpf) return reply("❌ Erro: A planilha precisa ter uma coluna para 'CPF'.");
 
         const dadosFiltrados = dadosPlanilha.map(item => ({
             NOME: String(item[headers.indexOf(mapeamento.nome)] || ""),
@@ -126,11 +115,14 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
             AGENCIA: String(item[headers.indexOf(mapeamento.agencia)] || ""),
             NASCIMENTO: formatarData(item[headers.indexOf(mapeamento.nascimento)] || ""),
             DDD_01: String(item[headers.indexOf(mapeamento.ddd_01)] || "").replace(/\D/g, ''),
-            TEL_01: normalizarTelefone(String(item[headers.indexOf(mapeamento.tel_01)] || "")),
+            TEL_01: normalizarTelefone(item[headers.indexOf(mapeamento.tel_01)] || ""),
             DDD_02: String(item[headers.indexOf(mapeamento.ddd_02)] || "").replace(/\D/g, ''),
-            TEL_02: normalizarTelefone(String(item[headers.indexOf(mapeamento.tel_02)] || "")),
+            TEL_02: normalizarTelefone(item[headers.indexOf(mapeamento.tel_02)] || ""),
             DDD_03: String(item[headers.indexOf(mapeamento.ddd_03)] || "").replace(/\D/g, ''),
-            TEL_03: normalizarTelefone(String(item[headers.indexOf(mapeamento.tel_03)] || "")),
+            TEL_03: normalizarTelefone(item[headers.indexOf(mapeamento.tel_03)] || ""),
+            TELEFONE_1: String(item[headers.indexOf(mapeamento.telefone_1)] || "").replace(/\D/g, ''),
+            TELEFONE_2: String(item[headers.indexOf(mapeamento.telefone_2)] || "").replace(/\D/g, ''),
+            TELEFONE_3: String(item[headers.indexOf(mapeamento.telefone_3)] || "").replace(/\D/g, ''),
         }));
 
         const rangeEnd = Math.min(end, dadosFiltrados.length);
@@ -139,116 +131,104 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
             campaignStats.totalProcessed++;
             const dados = dadosFiltrados[i];
             const nomeCompleto = dados.NOME || 'Cliente';
+            
+            let enviadoComSucesso = false;
+            let contatoIgnorado = false;
 
+            const numerosParaTentar = [];
+            for (let j = 1; j <= 3; j++) {
+                let numeroFinal = null;
+                if (dados[`DDD_0${j}`] && dados[`TEL_0${j}`]) {
+                    numeroFinal = `55${dados[`DDD_0${j}`]}${dados[`TEL_0${j}`]}`;
+                } else if (dados[`TELEFONE_${j}`]) {
+                    numeroFinal = formatarNumeroCompleto(dados[`TELEFONE_${j}`]);
+                }
+                if (numeroFinal) numerosParaTentar.push(numeroFinal);
+            }
+            const unicosParaTentar = [...new Set(numerosParaTentar)];
 
-
-            const numerosParaTentar = [
-                dados.DDD_01 && dados.TEL_01 ? `55${dados.DDD_01}${dados.TEL_01}` : null,
-                dados.DDD_02 && dados.TEL_02 ? `55${dados.DDD_02}${dados.TEL_02}` : null,
-                dados.DDD_03 && dados.TEL_03 ? `55${dados.DDD_03}${dados.TEL_03}` : null,
-            ].filter(n => n && n.length >= 12);
-
-            if (numerosParaTentar.length === 0) {
+            if (unicosParaTentar.length === 0) {
                 campaignStats.noContactInfo++;
-            } else {
-                for (const numero of numerosParaTentar) {
-                    // *** CORREÇÃO LÓGICA ***
-                    // A verificação de envio recente agora é feita por numero
-                    // antes de tentar qualquer um dos seus números.
-                    if (dbService.checkRecentSend(numero, clientWhatsappNumber)) {
-                        reply(`🟡 Envio recente, foi ignorado: ${nomeCompleto}`);
-                        campaignStats.ignoredRecent ++;
-                        break; // Pula para o próximo contato da planilha.
-                    }
+                reply(`🚫 Contato ${nomeCompleto} ignorado (sem número de telefone válido).`);
+                continue;
+            }
 
-                    const numeroComWhatsapp = `${numero}@c.us`;
-                    try {
-                        const isRegistered = await client.isRegisteredUser(numeroComWhatsapp);
-                        if (isRegistered) {
-                            let textoFinal = message
-                                .replace(/@nomecompleto/gi, nomeCompleto)
-                                .replace(/@nome/gi, nomeCompleto.split(' ')[0])
-                                .replace(/@cpf/gi, dados.CPF)
-                                .replace(/@agencia/gi, dados.AGENCIA);
-
-                            let imagePath = '';
-                            const imageExtensions = ['jpeg', 'jpg', 'png', 'gif', 'webp'];
-                            for (const ext of imageExtensions) {
-                                const tempPath = path.join(userDirBase, clientWhatsappNumber, `imagem.${ext}`);
-                                if (fs.existsSync(tempPath)) {
-                                    imagePath = tempPath;
-                                    break;
-                                }
-                            }
-
-                            const audioPath = path.join(userDirBase, clientWhatsappNumber, 'audio.ogg');
-                            const audioExists = fs.existsSync(audioPath);
-
-                            // Prioriza o envio de imagem com legenda
-                            if (imagePath) {
-                                const imageMedia = MessageMedia.fromFilePath(imagePath);
-                                await client.sendMessage(numeroComWhatsapp, imageMedia, { caption: textoFinal });
-                            } else {
-                                // Se não houver imagem, envia o texto primeiro
-                                await client.sendMessage(numeroComWhatsapp, textoFinal);
-
-                                // E depois, se houver áudio, envia como nota de voz
-                            }
-                            if (audioExists) {
-                                const audioMedia = MessageMedia.fromFilePath(audioPath);
-                                await client.sendMessage(numeroComWhatsapp, audioMedia, { sendAudioAsVoice: true });
-                            }
-
-
-                            dbService.saveOrUpdateContact({
-                                cpf: dados.CPF, nome: dados.NOME, agencia: dados.AGENCIA,
-                                telefone: numero, // Salva o número que funcionou
-                                nascimento: dados.NASCIMENTO
-                            }, clientWhatsappNumber);
-                            dbService.logCampaignSend(clientWhatsappNumber, dados.CPF, 'SENT');
-                            campaignStats.successfulSends + 1;
-                            enviadoComSucesso = true;
-                            // Arquiva a conversa após o envio bem-sucedido
-                            await client.archiveChat(numeroComWhatsapp);
-                            break;
-                        } else {
-                         //   dbService.logCampaignSend(clientWhatsappNumber, dados.CPF, 'NO_WHATSAPP');
-                            campaignStats.noWhatsapp++;
-                        }
-                    } catch (e) {
-                       // dbService.logCampaignSend(clientWhatsappNumber, dados.CPF, 'FAILED');
-                        campaignStats.failedToSend++;
-                    }
+            for (const numero of unicosParaTentar) {
+                if (dbService.checkRecentSend(numero, clientWhatsappNumber)) {
+                    contatoIgnorado = true;
+                    break; 
                 }
             }
-            // *** Contabiliza as estatísticas APÓS todas as tentativas para o contato ***
+
+            if (contatoIgnorado) {
+                reply(`🟡 Envio para ${nomeCompleto} ignorado (contato recente).`);
+                campaignStats.ignoredRecent++;
+                continue;
+            }
+            
+            // --- LÓGICA REVERTIDA: Envia apenas para o primeiro número válido ---
+            for (const numero of unicosParaTentar) {
+                try {
+                    if (await client.isRegisteredUser(`${numero}@c.us`)) {
+                        reply(`✅ Enviando para ${nomeCompleto} (${numero})...`);
+                        let textoFinal = message.replace(/@nomecompleto/gi, nomeCompleto).replace(/@nome/gi, nomeCompleto.split(' ')[0]).replace(/@cpf/gi, dados.CPF).replace(/@agencia/gi, dados.AGENCIA);
+                        
+                        let imagePath = '';
+                        const imageExtensions = ['jpeg', 'jpg', 'png', 'gif', 'webp'];
+                        for (const ext of imageExtensions) {
+                            const tempPath = path.join(userDirBase, clientWhatsappNumber, `imagem.${ext}`);
+                            if (fs.existsSync(tempPath)) {
+                                imagePath = tempPath;
+                                break;
+                            }
+                        }
+
+                        const audioPath = path.join(userDirBase, clientWhatsappNumber, 'audio.ogg');
+                        const audioExists = fs.existsSync(audioPath);
+
+                        if (imagePath) {
+                            const imageMedia = MessageMedia.fromFilePath(imagePath);
+                            await client.sendMessage(`${numero}@c.us`, imageMedia, { caption: textoFinal });
+                        } else {
+                            await client.sendMessage(`${numero}@c.us`, textoFinal);
+                        }
+                        if (audioExists) {
+                            const audioMedia = MessageMedia.fromFilePath(audioPath);
+                            await client.sendMessage(`${numero}@c.us`, audioMedia, { sendAudioAsVoice: true });
+                        }
+                        
+                        dbService.saveOrUpdateContact({ cpf: dados.CPF, nome: dados.NOME, agencia: dados.AGENCIA, telefone: numero, nascimento: dados.NASCIMENTO }, clientWhatsappNumber);
+                        dbService.logCampaignSend(clientWhatsappNumber, dados.CPF, 'SENT');
+                        
+                        enviadoComSucesso = true;
+                        
+                        await client.archiveChat(`${numero}@c.us`);
+                        break; // <-- Pára o loop após o primeiro envio bem-sucedido
+                    }
+                } catch (e) {
+                    console.error(`Erro ao tentar enviar para ${numero}:`, e);
+                    reply(`❌ Falha ao enviar para ${nomeCompleto} (${numero}).`);
+                    campaignStats.failedToSend++;
+                }
+            }
+
             if (enviadoComSucesso) {
                 campaignStats.successfulSends++;
             } else {
-                // Só incrementa se não foi ignorado e nenhuma tentativa teve sucesso
-                if (!contatoIgnorado) {
-                    campaignStats.noWhatsapp++;
-                    dbService.logCampaignSend(clientWhatsappNumber, dados.CPF, 'NO_WHATSAPP');
-                }
+                campaignStats.noWhatsapp++;
+                dbService.logCampaignSend(clientWhatsappNumber, dados.CPF, 'NO_WHATSAPP');
+                reply(`⭕ Nenhum número de ${nomeCompleto} encontrado no WhatsApp.`);
             }
+            // --- FIM DA REVERSÃO ---
+            
             await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 2000));
         }
     } catch (error) {
         console.error("Erro fatal durante a campanha:", error);
-        reply('❌ Um erro inesperado ocorreu durante a campanha. Verifique os logs do servidor.');
+        reply('❌ Um erro inesperado ocorreu durante a campanha.');
     } finally {
-        const summary = `
-        \n---------------------------------
-        🏁 *Campanha Finalizada!* 🏁
-        - *Total Processado:* ${campaignStats.totalProcessed}
-        - *✅ Enviados com Sucesso:* ${campaignStats.successfulSends}
-        - *⭕ Sem WhatsApp (Tentativas):* ${campaignStats.noWhatsapp}
-        - *🚫 Sem Contato Válido:* ${campaignStats.noContactInfo}
-        - *🟡 Ignorado (envio recente):* ${campaignStats.ignoredRecent}
-        ---------------------------------`;
-
+        const summary = `🏁 *Campanha Finalizada!* 🏁\n- *Numero de clientes:* ${campaignStats.totalProcessed}\n- *✅ Contatos Alcançados:* ${campaignStats.successfulSends}\n- *⭕ Contatos Sem WhatsApp:* ${campaignStats.noWhatsapp}\n- *🟡 Ignorados (Recentes):* ${campaignStats.ignoredRecent}\n\n---------------------------------`;
         reply(summary);
-
         campaignsInProgress.delete(clientWhatsappNumber);
         if (socket) socket.emit('campaign-finished');
     }

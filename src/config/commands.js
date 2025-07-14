@@ -53,18 +53,18 @@ console.log('✅ [Commands] Módulos carregados: dbService, fs, path, XLSX, camp
 // --- Funções Auxiliares para o Comando !gerar ---
 
 function generateRandomBrazilianPhoneNumber() {
-    const ddds = ['41', '42', '43', '44', '45'];
+    const ddds = ['41', '42'];
     const randomDdd = ddds[Math.floor(Math.random() * ddds.length)];
-    let number = '9'; // Garante que comece com 9
-    for (let i = 0; i < 7; i++) { // 7 dígitos restantes para um total de 8
+    let number = '99'; // Garante que comece com 9
+    for (let i = 0; i < 6; i++) { // 7 dígitos restantes para um total de 8
         number += Math.floor(Math.random() * 10);
     }
     return `${randomDdd}${number}`;
 }
 
 function generateRandomBirthday() {
-    const start = new Date(1950, 0, 1);
-    const end = new Date(2005, 11, 31);
+    const start = new Date(2025, 0, 1);
+    const end = new Date(2025, 0, 31);
     const randomDate = new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
     const day = String(randomDate.getDate()).padStart(2, '0');
     const month = String(randomDate.getMonth() + 1).padStart(2, '0');
@@ -318,10 +318,10 @@ const commands = [
         }
     },
     {
-        command: 'Apagar',
+        command: '.apagar',
         description: 'Apaga mídia (audio/imagem) ou lista. Uso: `.del [audio|imagem|lista]`',
         action: async (message, user, clientId, socket, centralBotWhatsappNumber, userDirBase) => {
-            const mediaType = message.body.replace('Apagar ', '').trim().toLowerCase();
+            const mediaType = message.body.replace('.apagar ', '').trim().toLowerCase();
             let filePathToDelete = '';
             let replyMessage = '';
 

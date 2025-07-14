@@ -43,7 +43,6 @@ function getUserDb(clientWhatsappNumber) {
     const clientDbSubDir = path.join(userBaseDir, clientWhatsappNumber, 'database');
     if (!fs.existsSync(clientDbSubDir)) {
         fs.mkdirSync(clientDbSubDir, { recursive: true });
-        console.log(`Diretório de banco de dados criado para o cliente: ${clientWhatsappNumber}`);
     }
 
     const userDbPath = path.join(clientDbSubDir, `${clientWhatsappNumber}.db`);
@@ -75,9 +74,92 @@ function getUserDb(clientWhatsappNumber) {
 }
 
 /**
- * Fecha todas as conexões de banco de dados abertas.
- * Ideal para ser chamado no encerramento do aplicativo.
+ * Salva os dados de uma aba de planilha numa nova tabela no banco de dados do cliente.
+ * @param {string} clientWhatsappNumber - O ID do cliente (número do WhatsApp).
+ * @param {Array<Object>} sheetData - Os dados da planilha em formato JSON.
+ * @param {string} sheetName - O nome da aba da planilha, que será usado para nomear a tabela.
  */
+function saveSheetToDatabase(clientWhatsappNumber, sheetData, sheetName) {
+    if (!sheetData || sheetData.length === 0) {
+        throw new Error("Os dados da planilha estão vazios.");
+    }
+
+    const db = getUserDb(clientWhatsappNumber);
+    
+    // Sanitiza o nome da aba para criar um nome de tabela válido
+    const tableName = `import_${sheetName.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}`;
+    
+    // Pega os cabeçalhos da primeira linha de dados
+    const headers = Object.keys(sheetData[0]);
+    
+    // CORREÇÃO APLICADA: Lógica aprimorada para garantir nomes de coluna únicos
+    const sanitizedColumns = headers.map(h => 
+        (h || 'coluna_vazia').replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase()
+    );
+
+    const columnCounts = {};
+    const finalColumns = sanitizedColumns.map(col => {
+        if (columnCounts[col]) {
+            columnCounts[col]++;
+            return `${col}_${columnCounts[col]}`;
+        }
+        columnCounts[col] = 1;
+        return col;
+    });
+    // FIM DA CORREÇÃO
+
+    const columns = finalColumns;
+    const columnDefinitions = columns.map(col => `"${col}" TEXT`).join(', ');
+
+    // Cria a tabela
+    db.exec(`CREATE TABLE IF NOT EXISTS "${tableName}" (${columnDefinitions})`);
+
+    // Prepara a inserção dos dados
+    const placeholders = columns.map(() => '?').join(', ');
+    const insert = db.prepare(`INSERT INTO "${tableName}" (${columns.map(c => `"${c}"`).join(', ')}) VALUES (${placeholders})`);
+
+    // Usa uma transação para inserir todos os dados de forma eficiente
+    const insertMany = db.transaction((rows) => {
+        for (const row of rows) {
+            // Usa os cabeçalhos originais para buscar os valores
+            const values = headers.map(header => row[header] !== undefined && row[header] !== null ? String(row[header]) : null);
+            insert.run(values);
+        }
+    });
+
+    insertMany(sheetData);
+    console.log(`Dados da aba '${sheetName}' salvos com sucesso na tabela '${tableName}' para o cliente ${clientWhatsappNumber}.`);
+}
+
+
+/**
+ * Lista todas as tabelas que foram importadas de planilhas.
+ * @param {string} clientWhatsappNumber - O ID do cliente.
+ * @returns {Array<string>} Uma lista com os nomes das tabelas importadas.
+ */
+function listImportedTables(clientWhatsappNumber) {
+    const db = getUserDb(clientWhatsappNumber);
+    const stmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'import_%'");
+    return stmt.all().map(row => row.name);
+}
+
+/**
+ * Obtém todos os dados de uma tabela de planilha importada específica.
+ * @param {string} clientWhatsappNumber - O ID do cliente.
+ * @param {string} tableName - O nome da tabela a ser consultada.
+ * @returns {Array<Object>} Os dados da tabela.
+ */
+function getImportedSheetData(clientWhatsappNumber, tableName) {
+    const db = getUserDb(clientWhatsappNumber);
+    // Validação para garantir que o nome da tabela é seguro
+    if (!/^[a-zA-Z0-9_]+$/.test(tableName)) {
+        throw new Error("Nome de tabela inválido.");
+    }
+    const stmt = db.prepare(`SELECT * FROM "${tableName}"`);
+    return stmt.all();
+}
+
+
 function closeAllConnections() {
     console.log("Fechando todas as conexões de banco de dados...");
     authDb.close();
@@ -128,26 +210,18 @@ function saveOrUpdateContact(contactData, clientWhatsappNumber) {
     }
 }
 
-/**
- * Verifica se um NÚMERO DE TELEFONE específico recebeu uma mensagem recentemente.
- * @param {string} telefone - O número de telefone a ser verificado.
- * @param {string} clientWhatsappNumber - O ID do cliente que está a fazer a campanha.
- * @returns {boolean} - True se o envio foi recente, false caso contrário.
- */
 function checkRecentSend(telefone, clientWhatsappNumber) {
     const db = getUserDb(clientWhatsappNumber);
-    // A consulta agora verifica o campo 'telefone' em vez de 'cpf'
     const contact = db.prepare('SELECT data_envio_ultima_mensagem FROM contatos WHERE telefone = ?').get(telefone);
     
     if (!contact || !contact.data_envio_ultima_mensagem) {
-        return false; // Se o número não foi encontrado ou nunca teve um envio, não é recente.
+        return false;
     }
 
     const lastSendDate = new Date(contact.data_envio_ultima_mensagem);
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-    // Retorna true se a data do último envio para este NÚMERO for dentro dos últimos 90 dias.
     return lastSendDate > ninetyDaysAgo;
 }
 
@@ -156,8 +230,6 @@ function getFilteredContacts(clientWhatsappNumber, filter = 'default', searchTer
     const db = getUserDb(clientWhatsappNumber);
     let baseQuery = 'SELECT * FROM contatos WHERE 1=1';
     const params = [];
-
- 
 
     if (searchTerm && searchTerm.trim() !== '') {
         const likeTerm = `%${searchTerm}%`;
@@ -207,30 +279,13 @@ const getStats = (clientWhatsappNumber) => {
     return db.prepare(query).all();
 };
 
-
-// --- NOVAS FUNÇÕES PARA EDITAR E APAGAR ---
-
-/**
- * Atualiza os dados de um contato específico.
- * @param {number} id - O ID do contato a ser atualizado.
- * @param {object} data - O objeto com os novos dados (ex: { nome: 'Novo Nome' }).
- * @param {string} clientWhatsappNumber - O ID do cliente.
- * @returns {boolean} - True se a atualização foi bem-sucedida.
- */
 function updateContact(id, data, clientWhatsappNumber) {
     const db = getUserDb(clientWhatsappNumber);
-    // Por enquanto, atualiza apenas o nome. Pode ser expandido facilmente.
     const stmt = db.prepare('UPDATE contatos SET nome = ? WHERE id = ?');
     const result = stmt.run(data.nome, id);
     return result.changes > 0;
 }
 
-/**
- * Apaga um contato específico do banco de dados.
- * @param {number} id - O ID do contato a ser apagado.
- * @param {string} clientWhatsappNumber - O ID do cliente.
- * @returns {boolean} - True se a exclusão foi bem-sucedida.
- */
 function deleteContact(id, clientWhatsappNumber) {
     const db = getUserDb(clientWhatsappNumber);
     const stmt = db.prepare('DELETE FROM contatos WHERE id = ?');
@@ -240,24 +295,22 @@ function deleteContact(id, clientWhatsappNumber) {
 
 
 module.exports = { 
-    // Funções de Autenticação
     findUserByUsername, 
     findUserById, 
     getAllUsers,
     createUser, 
     updateUserWhatsappNumber,
     findUserByWhatsappNumber,
-    
-    // Funções de Dados do Cliente
     getUserDb,
+    saveSheetToDatabase,
+    listImportedTables,
+    getImportedSheetData,
     logCampaignSend, 
     getStats,
     saveOrUpdateContact,
-    checkRecentSend, // A função agora verifica por telefone
+    checkRecentSend,
     getFilteredContacts,
     updateContact,
     deleteContact, 
-
-    // Gestão de Conexões
     closeAllConnections
 };

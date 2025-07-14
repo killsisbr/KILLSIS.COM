@@ -14,7 +14,7 @@ const statsService = require('./src/services/statsService.js');
 const whatsAppService = require('./src/services/whatsappService');
 const campaignService = require('./src/services/campaignService');
 const dbService = require('./src/services/databaseService');
-
+const geminiAnalysisService = require('./src/services/geminiAnalysisService');
 // --- Configuração ---
 const app = express();
 const server = http.createServer(app);
@@ -32,13 +32,12 @@ if (!fs.existsSync(userDir)) {
 }
 
 // --- Rota Principal e de Login ---
+app.use(express.json({ limit: '50mb' })); 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
 
 // --- Rotas da API de Autenticação ---
 app.post('/api/register', authService.registerHandler);
 app.post('/api/login', authService.loginHandler);
-
-
 
 // --- Rotas Protegidas da API ---
 app.get('/api/user/me', authService.verifyToken, (req, res) => res.json(req.user));
@@ -49,12 +48,8 @@ app.get('/api/contacts', authService.verifyToken, (req, res) => {
         const clientId = req.user.clientId;
         const { filter, search } = req.query;
 
-        // ✅ VERIFICAÇÃO ADICIONADA AQUI
         if (!clientId) {
-            // Se o usuário não tem um clientId (WhatsApp não conectado),
-            // retorna uma lista vazia em vez de quebrar o servidor.
-            console.log(`Usuário '${req.user.username}' tentou acessar contatos sem um clientId. Retornando lista vazia.`);
-            return res.json([]); // Retorna um array vazio
+            return res.json([]);
         }
 
         const contacts = dbService.getFilteredContacts(clientId, filter, search);
@@ -65,36 +60,51 @@ app.get('/api/contacts', authService.verifyToken, (req, res) => {
     }
 });
 
+// --- NOVAS ROTAS PARA PLANILHAS IMPORTADAS ---
+app.get('/api/imported-sheets', authService.verifyToken, (req, res) => {
+    try {
+        const clientId = req.user.clientId;
+        if (!clientId) {
+            return res.status(400).json({ message: 'Cliente não conectado ao WhatsApp.' });
+        }
+        const tables = dbService.listImportedTables(clientId);
+        res.json(tables);
+    } catch (error) {
+        console.error("Erro ao listar tabelas importadas:", error);
+        res.status(500).json({ message: 'Erro ao buscar listas importadas.' });
+    }
+});
 
-// Rota para ATUALIZAR um contato (mudar nome)
+app.get('/api/imported-sheets/:tableName', authService.verifyToken, (req, res) => {
+    try {
+        const clientId = req.user.clientId;
+        const { tableName } = req.params;
+        if (!clientId) {
+            return res.status(400).json({ message: 'Cliente não conectado ao WhatsApp.' });
+        }
+        const data = dbService.getImportedSheetData(clientId, tableName);
+        res.json(data);
+    } catch (error) {
+        console.error(`Erro ao buscar dados da tabela ${req.params.tableName}:`, error);
+        res.status(500).json({ message: 'Erro ao buscar dados da lista.' });
+    }
+});
+// --- FIM DAS NOVAS ROTAS ---
+
+
 app.put('/api/contacts/:id', authService.verifyToken, (req, res) => {
     try {
         const { id } = req.params;
         const { nome } = req.body;
-        
-        // CORREÇÃO: Usa o ID de usuário correto do token (seja 'id' ou 'userId')
         const userId = req.user.id || req.user.userId;
-        if (!userId) {
-            return res.status(403).json({ message: 'ID de usuário não encontrado no token de autenticação.' });
-        }
-
-        const freshUser = dbService.findUserById(userId);
-
-        if (!freshUser) {
-            return res.status(404).json({ message: 'Usuário autenticado não encontrado no sistema.' });
-        }
-
-        const clientWhatsappNumber = freshUser.command_whatsapp_number;
-
-        if (!clientWhatsappNumber) {
-            return res.status(400).json({ message: 'Cliente WhatsApp não associado.' });
-        }
-        if (!nome || typeof nome !== 'string' || nome.trim() === '') {
-            return res.status(400).json({ message: 'O novo nome é obrigatório.' });
-        }
-
-        const success = dbService.updateContact(id, { nome }, clientWhatsappNumber);
+        if (!userId) return res.status(403).json({ message: 'ID de usuário não encontrado no token.' });
         
+        const freshUser = dbService.findUserById(userId);
+        if (!freshUser || !freshUser.command_whatsapp_number) return res.status(400).json({ message: 'Cliente WhatsApp não associado.' });
+
+        if (!nome || typeof nome !== 'string' || nome.trim() === '') return res.status(400).json({ message: 'O novo nome é obrigatório.' });
+
+        const success = dbService.updateContact(id, { nome }, freshUser.command_whatsapp_number);
         if (success) {
             res.json({ message: 'Contato atualizado com sucesso.' });
         } else {
@@ -106,31 +116,16 @@ app.put('/api/contacts/:id', authService.verifyToken, (req, res) => {
     }
 });
 
-// Rota para APAGAR um contato
 app.delete('/api/contacts/:id', authService.verifyToken, (req, res) => {
     try {
         const { id } = req.params;
-        
-        // CORREÇÃO: Usa o ID de usuário correto do token (seja 'id' ou 'userId')
         const userId = req.user.id || req.user.userId;
-        if (!userId) {
-            return res.status(403).json({ message: 'ID de usuário não encontrado no token de autenticação.' });
-        }
-        
+        if (!userId) return res.status(403).json({ message: 'ID de usuário não encontrado no token.' });
+
         const freshUser = dbService.findUserById(userId);
+        if (!freshUser || !freshUser.command_whatsapp_number) return res.status(400).json({ message: 'Cliente WhatsApp não associado.' });
 
-        if (!freshUser) {
-            return res.status(404).json({ message: 'Usuário autenticado não encontrado no sistema.' });
-        }
-
-        const clientWhatsappNumber = freshUser.command_whatsapp_number;
-
-        if (!clientWhatsappNumber) {
-            return res.status(400).json({ message: 'Cliente WhatsApp não associado.' });
-        }
-
-        const success = dbService.deleteContact(id, clientWhatsappNumber);
-
+        const success = dbService.deleteContact(id, freshUser.command_whatsapp_number);
         if (success) {
             res.json({ message: 'Contato apagado com sucesso.' });
         } else {
@@ -146,9 +141,8 @@ app.delete('/api/contacts/:id', authService.verifyToken, (req, res) => {
 // --- Lógica do Socket.IO com Autenticação ---
 io.use((socket, next) => {
     const token = socket.handshake.auth.token;
-    if (!token) {
-        return next(new Error("Token de autenticação não fornecido."));
-    }
+    if (!token) return next(new Error("Token de autenticação não fornecido."));
+    
     jwt.verify(token, authService.JWT_SECRET, (err, user) => {
         if (err) return next(new Error("Token inválido."));
         socket.user = user;
@@ -157,65 +151,40 @@ io.use((socket, next) => {
 }).on('connection', (socket) => {
     console.log(`[+] Cliente autenticado e conectado: ${socket.user.username} (ClientID: ${socket.user.clientId})`);
 
-    // Inicializa o cliente WhatsApp para o usuário logado
-    // A assinatura da função foi atualizada para (sessionIdentifier, userObject, socket, isCentralBot)
     whatsAppService.initializeClient(socket.user.username, socket.user, socket, false);
 
     socket.on('upload-list', ({ id, file, fileName }) => {
-        console.log(`[+] Recebido upload de lista do usuário '${socket.user.username}'. Ficheiro: ${fileName}`);
         const clientUserDir = path.join(userDir, id);
         if (!fs.existsSync(clientUserDir)) fs.mkdirSync(clientUserDir);
         const filePath = path.join(clientUserDir, fileName);
         fs.writeFile(filePath, Buffer.from(file), (err) => {
-            if (err) {
-                console.error(`   - Erro ao guardar a lista para ${socket.user.username}: ${err.message}`);
-                return socket.emit('log', `Erro ao guardar a lista: ${err.message}`);
-            }
-            console.log(`   - Lista '${fileName}' guardada com sucesso para o cliente ${id}.`);
+            if (err) return socket.emit('log', `Erro ao guardar a lista: ${err.message}`);
             socket.emit('upload-success', { fileName });
         });
     });
 
     socket.on('upload-media', ({ id, file, type }) => {
         const mediaFileName = type.startsWith('image/') ? 'imagem.jpeg' : 'audio.ogg';
-        console.log(`[+] Recebido upload de multimédia do usuário '${socket.user.username}'. Ficheiro: ${mediaFileName}`);
         const clientUserDir = path.join(userDir, id);
         if (!fs.existsSync(clientUserDir)) fs.mkdirSync(clientUserDir);
         const filePath = path.join(clientUserDir, mediaFileName);
         fs.writeFile(filePath, Buffer.from(file), (err) => {
-            if (err) {
-                console.error(`   - Erro ao guardar a multimédia para ${socket.user.username}: ${err.message}`);
-                return socket.emit('log', `Erro ao guardar a mídia: ${err.message}`);
-            }
-            console.log(`   - Multimédia '${mediaFileName}' guardada com sucesso para o cliente ${id}.`);
+            if (err) return socket.emit('log', `Erro ao guardar a mídia: ${err.message}`);
             socket.emit('upload-success', { fileName: mediaFileName });
         });
     });
 
     socket.on('start-sending', async (data) => {
-        console.log(`[+] Campanha iniciada pelo usuário '${socket.user.username}' com os seguintes dados:`);
-        console.log(`    - ID do Cliente: ${data.id}`);
-        console.log(`    - Ficheiro da Lista: ${data.listFileName}`);
-        console.log(`    - Início do Índice: ${data.start}`);
-        console.log(`    - Fim do Índice: ${data.end}`);
-        console.log(`    - Mensagem: "${data.message.substring(0, 50)}..."`);
-        campaignService.startCampaign(data, { socket }); // Passa o socket como um objeto para manter a compatibilidade
+        campaignService.startCampaign(data, { socket });
     });
 });
 
-/**
- * Inicializa automaticamente as sessões de WhatsApp para todos os usuários
- * que já têm um número associado no banco de dados.
- */
 function initializeUserSessionsOnStartup() {
     console.log('\n[+] Verificando sessões de usuário para inicialização automática...');
     try {
         const allUsers = dbService.getAllUsers();
         for (const user of allUsers) {
-            // Inicia a sessão apenas para usuários que já vincularam um número de WhatsApp
             if (user.command_whatsapp_number) {
-                console.log(`   -> Iniciando sessão em background para: ${user.username} (Número: ${user.command_whatsapp_number})`);
-                // Chama initializeClient sem um socket, mas com o objeto de usuário completo.
                 whatsAppService.initializeClient(user.username, user, null, false);
             }
         }
@@ -229,29 +198,6 @@ function initializeUserSessionsOnStartup() {
 // --- Iniciar Servidor ---
 server.listen(PORT, () => {
     console.log(`Servidor rodando em http://localhost:${PORT}`);
-
-    // 1. Inicializa o bot central na inicialização do servidor
     whatsAppService.initializeClient('bot-central', null, null, true);
-
-    // 2. Inicializa as sessões de todos os usuários já registrados
     initializeUserSessionsOnStartup();
-
-    // 3. Bloco para imprimir o estado do banco de dados na inicialização
-    console.log("\n--- CONTEÚDO ATUAL DO BANCO DE DADOS ---");
-    try {
-        const allUsers = dbService.getAllUsers();
-        if (allUsers.length === 0) {
-            console.log("Nenhum usuário registrado no momento.");
-        } else {
-            allUsers.forEach(user => {
-                console.log(`[+] Usuário: ${user.username} (ID: ${user.id}, ClientID: ${user.client_id})`);
-                if (!user.client_id) {
-                    console.log("    - Nenhum número de WhatsApp associado. Contatos não podem ser carregados.");
-                }
-            });
-        }
-    } catch (dbError) {
-        console.error("Erro ao imprimir o estado do banco de dados:", dbError);
-    }
-    console.log("------------------------------------------\n");
 });
