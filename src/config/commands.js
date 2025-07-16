@@ -240,11 +240,12 @@ const commands = [
     },
     {
         command: '.enviar',
-        description: 'Inicia o envio da lista de contatos. Uso: `.enviar [inicio] [fim]`',
+        description: 'Inicia o envio da lista de contatos. Uso: `.enviar [inicio] [fim] [tabela(opcional)]`',
         action: async (message, user, clientId, socket) => {
             const parts = message.body.split(' ');
             const inicio = parseInt(parts[1]);
             const fim = parseInt(parts[2]);
+            const tableName = parts[3];
 
             if (isNaN(inicio) || isNaN(fim) || inicio <= 1 || inicio > fim) {
                 return message.reply('Formato inválido. Use: `.enviar [linha_inicial] [linha_final]`. Ex: `.enviar 2 100` (a linha 1 é o cabeçalho).');
@@ -266,10 +267,13 @@ const commands = [
             }
 
             const campaignOptions = {
-                campaignId: clientId, username: user.username,
-                start: inicio - 1, end: fim - 1, // Corrigido
-                message: messageContent
-                , listFileName: listFileName, useAI: false
+                campaignId: clientId,
+                username: user.username,
+                start: inicio - 1,
+                end: fim - 1,
+                message: messageContent,
+                listFileName: listFileName,
+                tableName
             };
             console.log(`[Comando .enviar] Iniciando campanha com as seguintes opções:`, campaignOptions);
             startCampaign(campaignOptions, { socket, commandMessage: message });

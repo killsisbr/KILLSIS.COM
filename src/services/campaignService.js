@@ -60,7 +60,7 @@ function formatarNumeroCompleto(numero) {
 
 // --- Função Principal da Campanha ---
 
-async function startCampaign({ campaignId, username, start, end, message, listFileName }, { socket, commandMessage }) {
+async function startCampaign({ campaignId, username, start, end, message, listFileName, tableName }, { socket, commandMessage }) {
     const clientWhatsappNumber = campaignId || (socket && socket.user ? socket.user.commandWhatsappNumber : null);
     const clientUsername = username || (socket && socket.user ? socket.user.username : null);
 
@@ -83,9 +83,31 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
     }
 
     ensureUserDirectoryExists(clientWhatsappNumber);
-    const listPath = path.join(userDirBase, clientWhatsappNumber, listFileName);
-    if (!fs.existsSync(listPath)) {
-        return reply(`❌ Erro: Planilha '${listFileName}' não encontrada.`);
+
+    let dadosPlanilha = [];
+    let headers = [];
+
+    if (tableName) {
+        dadosPlanilha = dbService.getImportedSheetData(clientWhatsappNumber, tableName);
+        if (!dadosPlanilha || dadosPlanilha.length === 0) {
+            return reply('❌ Erro: A lista selecionada está vazia.');
+        }
+        headers = Object.keys(dadosPlanilha[0]).map(h => String(h).toLowerCase().trim());
+    } else {
+        const listPath = path.join(userDirBase, clientWhatsappNumber, listFileName);
+        if (!fs.existsSync(listPath)) {
+            return reply(`❌ Erro: Planilha '${listFileName}' não encontrada.`);
+        }
+        const workbook = XLSX.readFile(listPath);
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: "" });
+        if (jsonData.length < 2) return reply('❌ Erro: A planilha está vazia.');
+        headers = jsonData[0].map(h => String(h).toLowerCase().trim());
+        dadosPlanilha = jsonData.slice(1).map(row => {
+            const obj = {};
+            headers.forEach((h, idx) => { obj[h] = row[idx]; });
+            return obj;
+        });
     }
 
     const campaignStats = { totalProcessed: 0, successfulSends: 0, ignoredRecent: 0, noWhatsapp: 0, failedToSend: 0, noContactInfo: 0 };
@@ -94,35 +116,25 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
         campaignsInProgress.add(clientWhatsappNumber);
         reply('▶️ Iniciando processo de envio...');
 
-        const workbook = XLSX.readFile(listPath);
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: "" });
-
-        if (jsonData.length < 2) return reply('❌ Erro: A planilha está vazia.');
-        
-        const headers = jsonData[0].map(h => String(h).toLowerCase().trim());
-        const dadosPlanilha = jsonData.slice(1);
-
         const mapeamento = {};
         for (const key in mapeamentoConfig) {
             mapeamento[key] = mapeamentoConfig[key].find(alias => headers.includes(alias)) || null;
         }
         if (!mapeamento.cpf) return reply("❌ Erro: A planilha precisa ter uma coluna para 'CPF'.");
-
         const dadosFiltrados = dadosPlanilha.map(item => ({
-            NOME: String(item[headers.indexOf(mapeamento.nome)] || ""),
-            CPF: String(item[headers.indexOf(mapeamento.cpf)] || "").replace(/\D/g, ''),
-            AGENCIA: String(item[headers.indexOf(mapeamento.agencia)] || ""),
-            NASCIMENTO: formatarData(item[headers.indexOf(mapeamento.nascimento)] || ""),
-            DDD_01: String(item[headers.indexOf(mapeamento.ddd_01)] || "").replace(/\D/g, ''),
-            TEL_01: normalizarTelefone(item[headers.indexOf(mapeamento.tel_01)] || ""),
-            DDD_02: String(item[headers.indexOf(mapeamento.ddd_02)] || "").replace(/\D/g, ''),
-            TEL_02: normalizarTelefone(item[headers.indexOf(mapeamento.tel_02)] || ""),
-            DDD_03: String(item[headers.indexOf(mapeamento.ddd_03)] || "").replace(/\D/g, ''),
-            TEL_03: normalizarTelefone(item[headers.indexOf(mapeamento.tel_03)] || ""),
-            TELEFONE_1: String(item[headers.indexOf(mapeamento.telefone_1)] || "").replace(/\D/g, ''),
-            TELEFONE_2: String(item[headers.indexOf(mapeamento.telefone_2)] || "").replace(/\D/g, ''),
-            TELEFONE_3: String(item[headers.indexOf(mapeamento.telefone_3)] || "").replace(/\D/g, ''),
+            NOME: String(item[mapeamento.nome] || ""),
+            CPF: String(item[mapeamento.cpf] || "").replace(/\D/g, ''),
+            AGENCIA: String(item[mapeamento.agencia] || ""),
+            NASCIMENTO: formatarData(item[mapeamento.nascimento] || ""),
+            DDD_01: String(item[mapeamento.ddd_01] || "").replace(/\D/g, ''),
+            TEL_01: normalizarTelefone(item[mapeamento.tel_01] || ""),
+            DDD_02: String(item[mapeamento.ddd_02] || "").replace(/\D/g, ''),
+            TEL_02: normalizarTelefone(item[mapeamento.tel_02] || ""),
+            DDD_03: String(item[mapeamento.ddd_03] || "").replace(/\D/g, ''),
+            TEL_03: normalizarTelefone(item[mapeamento.tel_03] || ""),
+            TELEFONE_1: String(item[mapeamento.telefone_1] || "").replace(/\D/g, ''),
+            TELEFONE_2: String(item[mapeamento.telefone_2] || "").replace(/\D/g, ''),
+            TELEFONE_3: String(item[mapeamento.telefone_3] || "").replace(/\D/g, ''),
         }));
 
         const rangeEnd = Math.min(end, dadosFiltrados.length);
