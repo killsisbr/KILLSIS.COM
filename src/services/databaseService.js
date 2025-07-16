@@ -20,7 +20,8 @@ function initializeAuthDb() {
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             client_id TEXT UNIQUE,
-            command_whatsapp_number TEXT UNIQUE
+            command_whatsapp_number TEXT UNIQUE,
+            delay_seconds INTEGER DEFAULT 3
         );
     `);
 }
@@ -194,6 +195,15 @@ const updateUserWhatsappNumber = (userId, whatsappNumber) => {
     authDb.prepare('UPDATE users SET command_whatsapp_number = ?, client_id = ? WHERE id = ?').run(whatsappNumber, whatsappNumber, userId);
 };
 
+const updateUserDelay = (userId, delaySeconds) => {
+    authDb.prepare('UPDATE users SET delay_seconds = ? WHERE id = ?').run(delaySeconds, userId);
+};
+
+const getUserDelay = (userId) => {
+    const user = authDb.prepare('SELECT delay_seconds FROM users WHERE id = ?').get(userId);
+    return user ? user.delay_seconds : null;
+};
+
 // --- FUNÇÕES DE DADOS (DBs Dinâmicos) ---
 
 function saveOrUpdateContact(contactData, clientWhatsappNumber) {
@@ -293,7 +303,6 @@ function deleteContact(id, clientWhatsappNumber) {
     return result.changes > 0;
 }
 
-
 module.exports = { 
     findUserByUsername, 
     findUserById, 
@@ -311,6 +320,8 @@ module.exports = {
     checkRecentSend,
     getFilteredContacts,
     updateContact,
-    deleteContact, 
-    closeAllConnections
+    deleteContact,
+    closeAllConnections,
+    updateUserDelay, // ✅ Adicione esta linha se estiver faltando
+    getUserDelay // (opcionalmente útil junto)
 };

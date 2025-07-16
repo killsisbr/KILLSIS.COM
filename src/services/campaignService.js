@@ -220,8 +220,8 @@ async function startCampaign({ campaignId, username, start, end, message, listFi
                 reply(`⭕ Nenhum número de ${nomeCompleto} encontrado no WhatsApp.`);
             }
             // --- FIM DA REVERSÃO ---
-            
-            await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 2000));
+            const userDelay = dbService.getUserDelay(user.id) || 30; // Pega o delay do usuário, padrão 30 segundos
+            await new Promise(resolve => setTimeout(resolve, userDelay * 1000 + Math.random() * 500));
         }
     } catch (error) {
         console.error("Erro fatal durante a campanha:", error);

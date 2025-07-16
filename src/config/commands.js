@@ -41,7 +41,16 @@ let helpText = `🤖 MENU DE COMANDOS DISPONÍVEIS 🤖\n` +
     `Apaga um arquivo da sua pasta. ❌\n` +
     `Ex: apagar imagem, apagar audio, apagar lista\n\n` +
 
-    `📁--- Arquivos ---📁\n` +
+    `⏳--- Configuração de Atraso ---⏳
+` +
+    `!delay [tempo]
+` +
+    `Define o atraso entre os envios de mensagens (30s a 5m). Ex: !delay 30s, !delay 2m
+
+` +
+
+    `📁--- Arquivos ---📁
+` +
 
     `Para usar uma planilha 📊, imagem 🖼️ ou áudio 🎧, basta enviar o arquivo diretamente para mim. 👉🤖`;
 
@@ -271,6 +280,7 @@ const commands = [
                 message: messageContent
                 , listFileName: listFileName, useAI: false
             };
+
             console.log(`[Comando .enviar] Iniciando campanha com as seguintes opções:`, campaignOptions);
             startCampaign(campaignOptions, { socket, commandMessage: message });
         }
@@ -364,6 +374,42 @@ const commands = [
                 });
             } else {
                 return message.reply(`❌ Não há ${mediaType} para apagar!`);
+            }
+        }
+    },
+    {
+        command: '!delay',
+        description: 'Define o atraso entre os envios de mensagens (30s a 5m). Uso: `!delay [tempo]`',
+        action: async (message, user, clientId) => {
+            const parts = message.body.split(' ');
+            if (parts.length < 2) {
+                return message.reply('❌ Formato inválido. Use `!delay [tempo]`. Ex: `!delay 30s`, `!delay 2m`.');
+            }
+
+            const delayString = parts[1].toLowerCase();
+            let delaySeconds = 0;
+
+            const matchSeconds = delayString.match(/^(\d+)s$/);
+            const matchMinutes = delayString.match(/^(\d+)m$/);
+
+            if (matchSeconds) {
+                delaySeconds = parseInt(matchSeconds[1]);
+            } else if (matchMinutes) {
+                delaySeconds = parseInt(matchMinutes[1]) * 60;
+            } else {
+                return message.reply('❌ Formato de tempo inválido. Use "s" para segundos ou "m" para minutos. Ex: `!delay 30s`, `!delay 2m`.');
+            }
+
+            if (delaySeconds < 30 || delaySeconds > 300) { // 30 segundos a 5 minutos (300 segundos)
+                return message.reply('❌ O atraso deve ser entre 30 segundos e 5 minutos (300 segundos).');
+            }
+
+            try {
+                dbService.updateUserDelay(user.id, delaySeconds);
+                await message.reply(`✅ Atraso entre envios configurado para ${delaySeconds} segundos.`);
+            } catch (error) {
+                console.error('Erro ao configurar o atraso:', error);
+                await message.reply('❌ Ocorreu um erro ao configurar o atraso. Tente novamente.');
             }
         }
     }
